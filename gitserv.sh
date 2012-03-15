@@ -11,34 +11,45 @@
 # you think this stuff is worth it, you can buy me a beer in return.
 # -- Lauri Rooden
 #
+#- 
+#- Add GIT alias:
+#- 
+#-   $ git config --global alias.admin '!sh -c '\''URL=$(git config remote.origin.url) && ssh ${URL%%:*} $*'\'' -' 
+#- 
+#- Example commands:
+#- 
+#-   $ git admin user
+#-   $ git admin user richard
+#-   $ git admin user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user richard group all,admin
+#-   $ git admin user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user richard del
+#-   $ git admin repo
+#-   $ git admin repo test.git add
+#-   $ git admin repo test.git config access.read all
+#-   $ git admin repo test.git config access.write admin,richard
+#-   $ git admin repo test.git config access.write.devel all
+#-   $ git admin repo test.git config access.tag richard
+#-   $ git admin repo test.git config branch.master.mergeoptions "--ff-only"
+#-   $ git admin repo test.git config branch.master.denyDeletes true
+#-   $ git admin repo test.git config branch.devel.mergeoptions "--no-ff"
+#-   $ git admin repo test.git config tags.denyOverwrite true
+#-   $ git admin repo test.git config --unset tags.denyOverwrite
+#-   $ git admin repo test.git del
+#- 
+#- Example commands without git alias:
+#- 
+#-   $ ssh git@repo.example.com user
+#-   $ ssh git@repo.example.com user richard
+#- 
+
+
 
 # Exit the script if any statement returns a non-true return value
 set -e
 
+
 KEYS="$HOME/.ssh/authorized_keys"
-
-
-#- Example commands:
-#- 
-#-   $ git server user
-#-   $ git server user richard
-#-   $ git server user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git server user richard group all,admin
-#-   $ git server user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git server user richard del
-#-   $ git server repo
-#-   $ git server repo test.git add
-#-   $ git server repo test.git config access.read all
-#-   $ git server repo test.git config access.write admin,richard
-#-   $ git server repo test.git config access.write.devel all
-#-   $ git server repo test.git config access.tag richard
-#-   $ git server repo test.git config branch.master.mergeoptions "--ff-only"
-#-   $ git server repo test.git config branch.master.denyDeletes true
-#-   $ git server repo test.git config branch.devel.mergeoptions "--no-ff"
-#-   $ git server repo test.git config tags.denyOverwrite true
-#-   $ git server repo test.git config --unset tags.denyOverwrite
-#-   $ git server repo test.git del
-#- 
 
 usage() {
 	sed -n "/^#- /s///p" "$0" >&2
@@ -59,9 +70,11 @@ deny() {
 # deny Ctrl-C and unwanted chars
 trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
 expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+# [[ "$*" = *[!a-zA-Z0-9_\'./_@=+-]* ]] && deny "DON'T BE NAUGHTY"
+
 
 list_of_repos() {
-	grep -Ilr --include=*config 'bare = true' * | sort -k2 | sed -e 's,/config$,,'
+	grep -Ilr --include=*config 'bare = true' * | sort | sed -e 's,/config$,,'
 }
 
 access_re() {
@@ -79,14 +92,14 @@ is_admin() {
 
 case $1 in
 	# allow git pull and push
-	git-upload-pack|git-receive-pack)
+	git-upload-pack|git-upload-archive|git-receive-pack)
 		# remove ' from repo name
-		eval "GIT_DIR=$2"
+		DIR=${2#\'};DIR=${DIR%\'}
 		
-		access_to_repo $GIT_DIR 'read' 'READ'
+		access_to_repo $DIR 'read' 'READ'
 
 		# branch based access control is in update-hook
-		[ "$1" = "git-receive-pack" ] && access_to_repo $GIT_DIR 'write' 'WRITE'
+		[ "$1" = *receive* ] && access_to_repo $DIR 'write' 'WRITE'
 
 		git shell -c "$*"
 	;;
@@ -116,7 +129,7 @@ case $1 in
 				fi
 			;;
 			*)
-				deny "Branch is not under refs/heads or refs/tags.  What are you trying to do?"
+				deny "Branch is not under refs/heads or refs/tags. What are you trying to do?"
 			;;
 		esac
 
@@ -178,6 +191,7 @@ case $1 in
 
 				# Backup repo
 				(cd $2 && tar -czf "../$2.$(date -u +'%Y%m%d%H%M%S').tar.gz" *)
+
 				rm -rf $2
 			;;
 			c*) # config
