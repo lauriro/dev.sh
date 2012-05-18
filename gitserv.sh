@@ -45,20 +45,23 @@
 
 
 
+KEYS=$HOME/.ssh/authorized_keys
+REPO=$HOME/repo
+LOGI=$HOME/access.log
+LINE="command=\"env USER=%s GROUP=all $0 \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n"
+CMD="$*"
+
+
 # Exit the script if any statement returns a non-true return value
 set -e
 
-
-KEYS="$HOME/.ssh/authorized_keys"
 
 usage() {
 	sed -n "/^#- /s///p" "$0" >&2
 }
 
-CMD="$*"
-
 log() {
-	echo "$(date -u +'%Y-%m-%d %H:%M:%S') ${SSH_CLIENT%% *} $USER: $1$CMD" >> access.log
+	echo "$(date -u +'%Y-%m-%d %H:%M:%S') ${SSH_CLIENT%% *} $USER: $1$CMD" >> $LOGI
 }
 
 deny() {
@@ -67,14 +70,8 @@ deny() {
 	exit 1
 }
 
-# deny Ctrl-C and unwanted chars
-trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
-expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
-# [[ "$*" = *[!a-zA-Z0-9_\'./_@=+-]* ]] && deny "DON'T BE NAUGHTY"
-
-
-list_of_repos() {
-	grep -Ilr --include=*config 'bare = true' * | sort | sed -e 's,/config$,,'
+is_admin() {
+	[ -z "$SSH_CLIENT" ] || grep -q "USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'ADMIN ACCESS DENIED'
 }
 
 access_re() {
@@ -86,26 +83,29 @@ access_to_repo() {
 	grep -E -q "$(access_re $USER)" || deny "REPOSITORY '${1##$HOME/}' $3 ACCESS DENIED"
 }
 
-is_admin() {
-	grep -q "USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'ADMIN ACCESS DENIED'
+list_of_repos() {
+	grep -Ilr --include=*config '^\s*bare = true' * 2>/dev/null | sort | sed -e 's,/config$,,'
 }
 
+
+# deny Ctrl-C and unwanted chars
+trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
+expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+
+cd $REPO 2>/dev/null || mkdir -p $REPO && cd $REPO
+
 case $1 in
-	# allow git pull and push
-	git-upload-pack|git-upload-archive|git-receive-pack)
-		# remove ' from repo name
-		DIR=${2#\'};DIR=${DIR%\'}
+	git-upload-pack|git-upload-archive|git-receive-pack)   # git pull and push
+		R=${2#\'};R=${R%\'}                                  # unquoted repo name
 		
-		access_to_repo $DIR 'read' 'READ'
+		access_to_repo $R 'read' 'READ'
 
-		# branch based access control is in update-hook
-		[ "$1" = *receive* ] && access_to_repo $DIR 'write' 'WRITE'
-
+		[ "$1" = "git-receive-pack" ] && access_to_repo $R 'write' 'WRITE'
+	
 		git shell -c "$*"
 	;;
 
-	update-hook)
-
+	update-hook)         # branch based access control
 		case $2 in
 			refs/tags/*)
 				access_to_repo $PWD '(write|tag)$' 'TAGGING'
@@ -113,7 +113,7 @@ case $1 in
 				git rev-parse --verify -q "$2" && deny "You can't overwrite an existing tag"
 			;;
 			refs/heads/*)
-				BRANCH="${2##refs/heads/}"
+				BRANCH="${2#refs/heads/}"
 				access_to_repo $PWD "(write|write\.$BRANCH)$" "BRANCH '$BRANCH' WRITE"
 				
 				if expr "$3" : '0*$' >/dev/null; then
@@ -142,7 +142,7 @@ case $1 in
 		case $3 in
 			a*) # add
 				grep -q "USER=$2 " $KEYS && deny 'USER EXISTS'
-				echo "command=\"env USER=$2 GROUP=all $0 \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty $4 $5" >> $KEYS
+				printf "$LINE" "$2" "$4" >> $KEYS
 			;;
 			d*) # del
 				sed -ie "/USER=$2 /d" $KEYS
@@ -151,16 +151,16 @@ case $1 in
 				sed -ie "/USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
 			;;
 			k*) # key
-				sed -ie "/USER=$2 /s/no-pty .*$/no-pty $4 $5/" $KEYS
+				sed -ie "/USER=$2 /s/no-pty .*$/no-pty $4/" $KEYS
 			;;
 			*)
 				if [ "$2" ]; then
-					USER_RE="$(access_re $2)"
-					if [ "$USER_RE" ]; then
+					RE="$(access_re $2)"
+					if [ -n "$RE" ]; then
 						echo "USER '$2' PERMISSIONS:" >&2
 
 						list_of_repos | while read R; do 
-							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$USER_RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
+							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
 							[ "$ACC" ] && echo "  - $R ["$ACC"]" >&2
 						done
 					else
