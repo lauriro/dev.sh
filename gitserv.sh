@@ -44,16 +44,17 @@
 #- 
 
 
+export LC_ALL=C
+
+# Exit the script if any statement returns a non-true return value
+set -e
+
 
 KEYS=$HOME/.ssh/authorized_keys
 REPO=$HOME/repo
 LOGI=$HOME/access.log
 LINE="command=\"env USER=%s GROUP=all $0 \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n"
 CMD="$*"
-
-
-# Exit the script if any statement returns a non-true return value
-set -e
 
 
 usage() {

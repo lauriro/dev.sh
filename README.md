@@ -6,10 +6,10 @@ $ sudo adduser git
 $ su git
 $ cd /home/git/
 $ mkdir .ssh
-$ chmod 700 ~/.ssh
+$ chmod 0700 ~/.ssh
 $ touch ~/.ssh/authorized_keys
-$ chmod 600 ~/.ssh/authorized_keys
-$ wget --no-check-certificate https://raw.github.com/lauriro/gitserv.sh/devel/gitserv.sh
+$ chmod 0600 ~/.ssh/authorized_keys
+$ wget -O gitserv.sh https://raw.github.com/lauriro/gitserv.sh/devel/gitserv.sh
 $ chmod +x gitserv.sh
 # Use full path here!
 $ /home/git/gitserv.sh user add richard 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
