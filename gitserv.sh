@@ -19,28 +19,28 @@
 #- Example commands:
 #- 
 #-   $ git admin user
-#-   $ git admin user richard
-#-   $ git admin user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git admin user richard group all,admin
-#-   $ git admin user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git admin user richard del
+#-   $ git admin user show richard
+#-   $ git admin user add richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user group richard all,admin
+#-   $ git admin user key richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user del richard
 #-   $ git admin repo
-#-   $ git admin repo test.git add
-#-   $ git admin repo test.git config access.read all
-#-   $ git admin repo test.git config access.write admin,richard
-#-   $ git admin repo test.git config access.write.devel all
-#-   $ git admin repo test.git config access.tag richard
-#-   $ git admin repo test.git config branch.master.mergeoptions "--ff-only"
-#-   $ git admin repo test.git config branch.master.denyDeletes true
-#-   $ git admin repo test.git config branch.devel.mergeoptions "--no-ff"
-#-   $ git admin repo test.git config tags.denyOverwrite true
-#-   $ git admin repo test.git config --unset tags.denyOverwrite
-#-   $ git admin repo test.git del
+#-   $ git admin repo add test.git
+#-   $ git admin repo config test.git access.read all
+#-   $ git admin repo config test.git access.write admin,richard
+#-   $ git admin repo config test.git access.write.devel all
+#-   $ git admin repo config test.git access.tag richard
+#-   $ git admin repo config test.git branch.master.mergeoptions "--ff-only"
+#-   $ git admin repo config test.git branch.master.denyDeletes true
+#-   $ git admin repo config test.git branch.devel.mergeoptions "--no-ff"
+#-   $ git admin repo config test.git tags.denyOverwrite true
+#-   $ git admin repo config test.git --unset tags.denyOverwrite
+#-   $ git admin repo del test.git
 #- 
 #- Example commands without git alias:
 #- 
 #-   $ ssh git@repo.example.com user
-#-   $ ssh git@repo.example.com user richard
+#-   $ ssh git@repo.example.com user show richard
 #- 
 
 
@@ -139,32 +139,32 @@ case $1 in
 	u*) # user
 		is_admin
 
-		case $3 in
+		case $2 in
 			a*) # add
-				grep -q "USER=$2 " $KEYS && deny 'USER EXISTS'
-				printf "$LINE" "$2" "$4" >> $KEYS
+				grep -q "USER=$3 " $KEYS && deny 'USER EXISTS'
+				printf "$LINE" "$3" "$4" >> $KEYS
 			;;
 			d*) # del
-				sed -ie "/USER=$2 /d" $KEYS
+				sed -ie "/USER=$3 /d" $KEYS
 			;;
 			g*) # group
-				sed -ie "/USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
+				sed -ie "/USER=$3 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
 			;;
 			k*) # key
-				sed -ie "/USER=$2 /s/no-pty .*$/no-pty $4/" $KEYS
+				sed -ie "/USER=$3 /s/no-pty .*$/no-pty $4/" $KEYS
 			;;
 			*)
-				if [ "$2" ]; then
-					RE="$(access_re $2)"
+				if [ "$3" ]; then
+					RE="$(access_re $3)"
 					if [ -n "$RE" ]; then
-						echo "USER '$2' PERMISSIONS:" >&2
+						echo "USER '$3' PERMISSIONS:" >&2
 
 						list_of_repos | while read R; do 
 							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
 							[ "$ACC" ] && echo "  - $R ["$ACC"]" >&2
 						done
 					else
-						echo "*** USER '$2' DO NOT EXISTS ***" >&2
+						echo "*** USER '$3' DO NOT EXISTS ***" >&2
 					fi
 				fi
 
@@ -177,26 +177,26 @@ case $1 in
 	r*) # repo
 		is_admin
 
-		case $3 in
+		case $2 in
 			a*) # add new repo
-				[ -d $2 ] && deny "REPOSITORY $2 EXISTS"
-				mkdir -p $2 && \
-				cd $2 && \
+				[ -d $3 ] && deny "REPOSITORY $3 EXISTS"
+				mkdir -p $3 && \
+				cd $3 && \
 				git init --bare && \
 				printf '#!/bin/sh\n%s update-hook \$@\n' "$0" > hooks/update && \
 				chmod +x hooks/update
 			;;
 			d*) # del
-				[ -d $2 ] || deny "REPOSITORY $2 DO NOT EXISTS"
+				[ -d $3 ] || deny "REPOSITORY $3 DO NOT EXISTS"
 
 				# Backup repo
-				(cd $2 && tar -czf "../$2.$(date -u +'%Y%m%d%H%M%S').tar.gz" *)
+				(cd $3 && tar -czf "../$3.$(date -u +'%Y%m%d%H%M%S').tar.gz" *)
 
-				rm -rf $2
+				rm -rf $3
 			;;
 			c*) # config
-				[ -d $2 ] || deny "REPOSITORY $2 DO NOT EXISTS"
-				git --git-dir="$HOME/$2" config ${4-'-l'} $5 >&2
+				[ -d $3 ] || deny "REPOSITORY $3 DO NOT EXISTS"
+				git --git-dir="$HOME/$3" config ${4-'-l'} $5 >&2
 			;;
 			*) # List of repos
 				echo 'LIST OF REPOSITORIES:' >&2

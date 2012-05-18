@@ -12,8 +12,8 @@ $ chmod 600 ~/.ssh/authorized_keys
 $ wget --no-check-certificate https://raw.github.com/lauriro/gitserv.sh/devel/gitserv.sh
 $ chmod +x gitserv.sh
 # Use full path here!
-$ /home/git/gitserv.sh user richard add 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
-$ /home/git/gitserv.sh user richard group 'all,admin'
+$ /home/git/gitserv.sh user add richard 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
+$ /home/git/gitserv.sh user group richard 'all,admin'
 $ exit
 ```
 
@@ -23,27 +23,27 @@ $ exit
 # List of users
 $ ssh git@repo.example.com user
 # Show richard's permissions
-$ ssh git@repo.example.com user richard
-$ ssh git@repo.example.com user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-$ ssh git@repo.example.com user richard group all,admin
-$ ssh git@repo.example.com user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-$ ssh git@repo.example.com user richard del
+$ ssh git@repo.example.com user show richard
+$ ssh git@repo.example.com user add richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+$ ssh git@repo.example.com user group richard all,admin
+$ ssh git@repo.example.com user key richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+$ ssh git@repo.example.com user del richard
 ```
 
 ### Manage repos
 
 ```
-$ ssh git@repo.example.com repo test.git add
-$ ssh git@repo.example.com repo test.git config access.read all
-$ ssh git@repo.example.com repo test.git config access.write admin,richard
-$ ssh git@repo.example.com repo test.git config access.write.devel all
-$ ssh git@repo.example.com repo test.git config access.tag richard
-$ ssh git@repo.example.com repo test.git config branch.master.mergeoptions "--ff-only"
-$ ssh git@repo.example.com repo test.git config branch.master.denyDeletes true
-$ ssh git@repo.example.com repo test.git config branch.devel.mergeoptions "--no-ff"
-$ ssh git@repo.example.com repo test.git config tags.denyOverwrite true
-$ ssh git@repo.example.com repo test.git config --unset tags.denyOverwrite
-$ ssh git@repo.example.com repo test.git del
+$ ssh git@repo.example.com repo add test.git
+$ ssh git@repo.example.com repo config test.git access.read all
+$ ssh git@repo.example.com repo config test.git access.write admin,richard
+$ ssh git@repo.example.com repo config test.git access.write.devel all
+$ ssh git@repo.example.com repo config test.git access.tag richard
+$ ssh git@repo.example.com repo config test.git branch.master.mergeoptions "--ff-only"
+$ ssh git@repo.example.com repo config test.git branch.master.denyDeletes true
+$ ssh git@repo.example.com repo config test.git branch.devel.mergeoptions "--no-ff"
+$ ssh git@repo.example.com repo config test.git tags.denyOverwrite true
+$ ssh git@repo.example.com repo config test.git --unset tags.denyOverwrite
+$ ssh git@repo.example.com repo del test.git
 
 ```
 
