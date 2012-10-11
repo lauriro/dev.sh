@@ -58,7 +58,7 @@ CMD="$*"
 
 
 usage() {
-	sed -n "/^#- /s///p" "$0" >&2
+	sed -n "/^#- \?/s///p" "$0" >&2
 }
 
 log() {
@@ -81,7 +81,7 @@ access_re() {
 
 access_to_repo() {
 	git --git-dir=$1 config --get-regexp "^access\.$2" | \
-	grep -E -q "$(access_re $USER)" || deny "REPOSITORY '${1##$HOME/}' $3 ACCESS DENIED"
+	grep -E -q "$(access_re $USER)" || deny "REPOSITORY '${1#$REPO/}' $3 ACCESS DENIED"
 }
 
 list_of_repos() {
@@ -160,7 +160,7 @@ case $1 in
 					if [ -n "$RE" ]; then
 						echo "USER '$3' PERMISSIONS:" >&2
 
-						list_of_repos | while read R; do 
+						list_of_repos | while read -r R; do 
 							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
 							[ "$ACC" ] && echo "  - $R ["$ACC"]" >&2
 						done
