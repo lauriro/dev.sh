@@ -1,47 +1,11 @@
 #!/bin/sh
 #
-# Tool for git hosting
+# Tool for hosting git
 #
+#    @version  pre-0.1
+#    @author   Lauri Rooden - https://github.com/lauriro/gitserv.sh
+#    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #
-# THE BEER-WARE LICENSE
-# =====================
-#
-# <lauri@rooden.ee> wrote this file. As long as you retain this notice
-# you can do whatever you want with this stuff. If we meet some day, and
-# you think this stuff is worth it, you can buy me a beer in return.
-# -- Lauri Rooden
-#
-#- 
-#- Add GIT alias:
-#- 
-#-   $ git config --global alias.admin '!sh -c '\''URL=$(git config remote.origin.url) && ssh ${URL%%:*} $*'\'' -' 
-#- 
-#- Example commands:
-#- 
-#-   $ git admin user
-#-   $ git admin user show richard
-#-   $ git admin user add richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git admin user group richard all,admin
-#-   $ git admin user key richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git admin user del richard
-#-   $ git admin repo
-#-   $ git admin repo add test.git
-#-   $ git admin repo config test.git access.read all
-#-   $ git admin repo config test.git access.write admin,richard
-#-   $ git admin repo config test.git access.write.devel all
-#-   $ git admin repo config test.git access.tag richard
-#-   $ git admin repo config test.git branch.master.mergeoptions "--ff-only"
-#-   $ git admin repo config test.git branch.master.denyDeletes true
-#-   $ git admin repo config test.git branch.devel.mergeoptions "--no-ff"
-#-   $ git admin repo config test.git tags.denyOverwrite true
-#-   $ git admin repo config test.git --unset tags.denyOverwrite
-#-   $ git admin repo del test.git
-#- 
-#- Example commands without git alias:
-#- 
-#-   $ ssh git@repo.example.com user
-#-   $ ssh git@repo.example.com user show richard
-#- 
 
 
 export LC_ALL=C
@@ -50,16 +14,15 @@ export LC_ALL=C
 set -e
 
 
-KEYS=$HOME/.ssh/authorized_keys
-REPO=$HOME/repo
-LOGI=$HOME/access.log
-LINE="command=\"env USER=%s GROUP=all $0 \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n"
+cd "${0%/*}/."
+
+SELF="$PWD/${0##*/}"
+LOGI="$PWD/access.log"
+REPO="$PWD/repo"
+KEYS="$HOME/.ssh/authorized_keys"
+LINE="command=\"env USER=%s GROUP=all $SELF \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s"
+
 CMD="$*"
-
-
-usage() {
-	sed -n "/^#- \?/s///p" "$0" >&2
-}
 
 log() {
 	echo "$(date -u +'%Y-%m-%d %H:%M:%S') ${SSH_CLIENT%% *} $USER: $1$CMD" >> $LOGI
@@ -69,6 +32,16 @@ deny() {
 	log "ERROR: $1: "
 	printf '\n*** %s ***\n\n' "$1" >&2
 	exit 1
+}
+
+# deny Ctrl-C and unwanted chars
+trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
+expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+
+
+
+usage() {
+	sed -n "/^#- /s///p" "$SELF" >&2
 }
 
 is_admin() {
@@ -89,21 +62,43 @@ list_of_repos() {
 }
 
 
-# deny Ctrl-C and unwanted chars
-trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
-expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
-
 cd $REPO 2>/dev/null || mkdir -p $REPO && cd $REPO
+
+#- Example commands:
+#- 
+#-   $ git admin user
+#-   $ git admin user show richard
+#-   $ git admin user add richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user group richard all,admin
+#-   $ git admin user key richard 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ git admin user del richard
+#-   $ git admin repo
+#-   $ git admin repo add test.git
+#-   $ git admin repo config test.git access.read all
+#-   $ git admin repo config test.git access.write admin,richard
+#-   $ git admin repo config test.git access.write.devel all
+#-   $ git admin repo config test.git access.tag richard
+#-   $ git admin repo config test.git branch.master.mergeoptions "--ff-only"
+#-   $ git admin repo config test.git branch.master.denyDeletes true
+#-   $ git admin repo config test.git branch.devel.mergeoptions "--no-ff"
+#-   $ git admin repo config test.git tags.denyOverwrite true
+#-   $ git admin repo config test.git --unset tags.denyOverwrite
+#-   $ git admin repo del test.git
+#-
 
 case $1 in
 	git-upload-pack|git-upload-archive|git-receive-pack)   # git pull and push
-		R=${2#\'};R=${R%\'}                                  # unquoted repo name
+		# unquote repo name
+		R=${2#\'};R=${R%\'}
+
+		[ -f "$R" ] && GIT_NAMESPACE=${R} && R=$(cat $R)
+				printf "\nconf:\n%s\n" "$* :: GIT_NAMESPACE=$GIT_NAMESPACE $2 -> $R" >&2
 		
 		access_to_repo $R 'read' 'READ'
 
 		[ "$1" = "git-receive-pack" ] && access_to_repo $R 'write' 'WRITE'
 	
-		git shell -c "$*"
+		git shell -c "$1 '$R'"
 	;;
 
 	update-hook)         # branch based access control
@@ -141,36 +136,36 @@ case $1 in
 		is_admin
 
 		case $2 in
-			a*) # add
+			add)
 				grep -q "USER=$3 " $KEYS && deny 'USER EXISTS'
-				printf "$LINE" "$3" "$4" >> $KEYS
+				printf "$LINE\n" "$3" "$4" >> $KEYS
 			;;
-			d*) # del
+			del)
 				sed -ie "/USER=$3 /d" $KEYS
 			;;
-			g*) # group
+			group)
 				sed -ie "/USER=$3 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
 			;;
-			k*) # key
+			key)
 				sed -ie "/USER=$3 /s/no-pty .*$/no-pty $4/" $KEYS
 			;;
 			*)
 				if [ "$3" ]; then
 					RE="$(access_re $3)"
 					if [ -n "$RE" ]; then
-						echo "USER '$3' PERMISSIONS:" >&2
+						printf "\nUSER '%s' PERMISSIONS:\n" "$3" >&2
 
 						list_of_repos | while read -r R; do 
 							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
-							[ "$ACC" ] && echo "  - $R ["$ACC"]" >&2
+							[ "$ACC" ] && echo "$R ["$ACC"]" >&2
 						done
 					else
 						echo "*** USER '$3' DO NOT EXISTS ***" >&2
 					fi
 				fi
 
-				echo 'LIST OF USERS:' >&2
-				sed -E -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,  - \1 [\2],;t' -e d $KEYS >&2
+				printf "\nLIST OF USERS:\n" >&2
+				sed -E -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,\1 [\2],;t' -e d $KEYS >&2
 			;;
 		esac
 	;;
@@ -179,7 +174,7 @@ case $1 in
 		is_admin
 
 		case $2 in
-			a*) # add new repo
+			add) # add new repo
 				[ -d $3 ] && deny "REPOSITORY $3 EXISTS"
 				mkdir -p $3 && \
 				cd $3 && \
@@ -187,7 +182,7 @@ case $1 in
 				printf '#!/bin/sh\n%s update-hook \$@\n' "$0" > hooks/update && \
 				chmod +x hooks/update
 			;;
-			d*) # del
+			del) # del
 				[ -d $3 ] || deny "REPOSITORY $3 DO NOT EXISTS"
 
 				# Backup repo
@@ -195,13 +190,18 @@ case $1 in
 
 				rm -rf $3
 			;;
-			c*) # config
-				[ -d $3 ] || deny "REPOSITORY $3 DO NOT EXISTS"
-				git --git-dir="$HOME/$3" config ${4-'-l'} $5 >&2
+			config) # config
+				R=$3
+				[ -f $R ] && GIT_NAMESPACE=$R && R=$(cat $R)
+				printf "\nconf:\n%s\n" "$3 -> $R" >&2
+				[ -d $R ] || deny "REPOSITORY $R DO NOT EXISTS"
+				git --git-dir="$REPO/$R" config ${4-'-l'} $5 >&2
+			;;
+			fork)
+				echo "$3" > "$4"
 			;;
 			*) # List of repos
-				echo 'LIST OF REPOSITORIES:' >&2
-				du -shc $(list_of_repos) | sed -e 's,^,  - ,' >&2
+				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(du -shc $(list_of_repos))" >&2
 			;;
 		esac
 	;;
@@ -214,3 +214,13 @@ log
 
 exit 0
 
+#- 
+#- Add GIT alias:
+#- 
+#-   $ git config --global alias.admin '!sh -c '\''URL=$(git config remote.origin.url) && ssh ${URL%%:*} $*'\'' -' 
+#- 
+#- Example commands without git alias:
+#- 
+#-   $ ssh git@repo.example.com user
+#-   $ ssh git@repo.example.com user show richard
+#- 
