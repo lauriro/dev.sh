@@ -14,7 +14,7 @@ export LC_ALL=C
 set -e
 
 
-cd "${0%/*}/."
+cd "${0%/*}/." >/dev/null
 
 SELF="$PWD/${0##*/}"
 LOGI="$PWD/access.log"
@@ -30,7 +30,7 @@ log() {
 
 deny() {
 	log "ERROR: $1: "
-	printf '\n*** %s ***\n\n' "$1" >&2
+	printf '\n***\n* ERROR: %s.\n***\n' "$1" >&2
 	exit 1
 }
 
@@ -45,16 +45,23 @@ usage() {
 }
 
 is_admin() {
-	[ -z "$SSH_CLIENT" ] || grep -q "USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'ADMIN ACCESS DENIED'
+	[ -z "$SSH_CLIENT" ] || grep -q "USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'Admin access denied'
 }
 
 access_re() {
 	sed -E -e 's/^.*USER='$1' GROUP=([^ ]*) .*$/ .*\\b('$1'|\1)\\b/;ta' -e d -e :a -e 's/,/|/g' $KEYS
 }
 
+conf() {
+	local FILE="$1/config"
+	shift
+	[ -n "$GIT_NAMESPACE" ] && FILE="$GIT_NAMESPACE"
+	git config --file "$FILE" $@
+}
+
 access_to_repo() {
-	git --git-dir=$1 config --get-regexp "^access\.$2" | \
-	grep -E -q "$(access_re $USER)" || deny "REPOSITORY '${1#$REPO/}' $3 ACCESS DENIED"
+	conf $1 --get-regexp "^access\.$2" | \
+	grep -E -q "$(access_re $USER)" || deny "Repository not found"
 }
 
 list_of_repos() {
@@ -62,7 +69,7 @@ list_of_repos() {
 }
 
 
-cd $REPO 2>/dev/null || mkdir -p $REPO && cd $REPO
+cd $REPO 2>/dev/null || mkdir -p $REPO && cd $REPO 2>/dev/null
 
 #- Example commands:
 #- 
@@ -91,7 +98,7 @@ case $1 in
 		# unquote repo name
 		R=${2#\'};R=${R%\'}
 
-		[ -f "$R" ] && GIT_NAMESPACE=${R} && R=$(cat $R)
+		[ -f "$R" ] && GIT_NAMESPACE=${R} && R=$(conf $R fork.master)
 				printf "\nconf:\n%s\n" "$* :: GIT_NAMESPACE=$GIT_NAMESPACE $2 -> $R" >&2
 		
 		access_to_repo $R 'read' 'READ'
@@ -102,10 +109,12 @@ case $1 in
 	;;
 
 	update-hook)         # branch based access control
+				printf "\nup: %s\n" "$* :: GIT_NAMESPACE=$GIT_NAMESPACE" >&2
+				env >&2
 		case $2 in
 			refs/tags/*)
 				access_to_repo $PWD '(write|tag)$' 'TAGGING'
-				[ "true" = "$(git config --bool tags.denyOverwrite)" ] &&
+				[ "true" = "$(conf $PWD --bool tags.denyOverwrite)" ] &&
 				git rev-parse --verify -q "$2" && deny "You can't overwrite an existing tag"
 			;;
 			refs/heads/*)
@@ -116,12 +125,12 @@ case $1 in
 					# The branch is new
 					echo "The branch $BRANCH is new..." >&2
 				elif expr "$4" : '0*$' >/dev/null; then
-					[ "true" = "$(git config --bool branch.$BRANCH.denyDeletes)" ] && deny "BRANCH '$BRANCH' DELETION DENIED"
+					[ "true" = "$(conf $PWD --bool branch.$BRANCH.denyDeletes)" ] && deny "BRANCH '$BRANCH' DELETION DENIED"
 				elif [ "$3" = "$(git-merge-base "$3" "$4")" ]; then
 					# Update is fast-forward
-					[ "--no-ff" = "$(git config branch.$BRANCH.mergeoptions)" ] && deny 'FAST-FORWARD NOT ALLOWED'
+					[ "--no-ff" = "$(conf $PWD branch.$BRANCH.mergeoptions)" ] && deny 'FAST-FORWARD NOT ALLOWED'
 				else
-					[ "--ff-only" = "$(git config branch.$BRANCH.mergeoptions)" ] && deny 'ONLY FAST-FORWARD ARE ALLOWED'
+					[ "--ff-only" = "$(conf $PWD branch.$BRANCH.mergeoptions)" ] && deny 'ONLY FAST-FORWARD ARE ALLOWED'
 				fi
 			;;
 			*)
@@ -132,7 +141,43 @@ case $1 in
 		exit 0
 	;;
 
-	u*) # user
+	repo)
+		is_admin
+
+		R="$3"
+		[ -f "$R" ] && GIT_NAMESPACE="$R" && R=$(conf "$R" fork.master)
+
+		test -e "$R" -o "$2" = "add" -o -z "$2" || deny "Repository not found"
+		
+		case "$2" in
+			add)
+				[ -e "$R" ] && deny "Repository exists"
+				mkdir -p "$R" && \
+				cd "$R" >/dev/null && \
+				git init --bare -q && \
+				printf '#!/bin/sh\n%s update-hook \$@\n' "$0" > hooks/update && \
+				chmod +x hooks/update
+			;;
+			del)
+				# Backup repo
+				tar -czf "$3.$(date -u +'%Y%m%d%H%M%S').tar.gz" "$3"
+
+				rm -rf "$3"
+			;;
+			config)
+				conf "$R" ${4-'-l'} $5 >&2
+			;;
+			fork)
+				GIT_NAMESPACE="$4"
+				conf "$4" fork.master "$R"
+			;;
+			*)
+				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(du -shc $(list_of_repos))" >&2
+			;;
+		esac
+	;;
+
+	user)
 		is_admin
 
 		case $2 in
@@ -156,7 +201,7 @@ case $1 in
 						printf "\nUSER '%s' PERMISSIONS:\n" "$3" >&2
 
 						list_of_repos | while read -r R; do 
-							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
+							ACC=$(conf $R --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
 							[ "$ACC" ] && echo "$R ["$ACC"]" >&2
 						done
 					else
@@ -170,41 +215,6 @@ case $1 in
 		esac
 	;;
 
-	r*) # repo
-		is_admin
-
-		case $2 in
-			add) # add new repo
-				[ -d $3 ] && deny "REPOSITORY $3 EXISTS"
-				mkdir -p $3 && \
-				cd $3 && \
-				git init --bare && \
-				printf '#!/bin/sh\n%s update-hook \$@\n' "$0" > hooks/update && \
-				chmod +x hooks/update
-			;;
-			del) # del
-				[ -d $3 ] || deny "REPOSITORY $3 DO NOT EXISTS"
-
-				# Backup repo
-				(cd $3 && tar -czf "../$3.$(date -u +'%Y%m%d%H%M%S').tar.gz" *)
-
-				rm -rf $3
-			;;
-			config) # config
-				R=$3
-				[ -f $R ] && GIT_NAMESPACE=$R && R=$(cat $R)
-				printf "\nconf:\n%s\n" "$3 -> $R" >&2
-				[ -d $R ] || deny "REPOSITORY $R DO NOT EXISTS"
-				git --git-dir="$REPO/$R" config ${4-'-l'} $5 >&2
-			;;
-			fork)
-				echo "$3" > "$4"
-			;;
-			*) # List of repos
-				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(du -shc $(list_of_repos))" >&2
-			;;
-		esac
-	;;
 	*)
 		usage
 	;;
