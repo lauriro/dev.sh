@@ -9,8 +9,6 @@
 
 
 export LC_ALL=C
-# Exit the script if any statement returns a non-true return value
-set -e
 
 cd "${0%/*}/." >/dev/null
 
@@ -34,7 +32,8 @@ deny() {
 
 # deny Ctrl-C and unwanted chars
 trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
-expr "$SSH_ORIGINAL_COMMAND$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+expr "$SSH_ORIGINAL_COMMAND$*" : '[-+ [:alnum:],'\''./_@=]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+expr "$SSH_ORIGINAL_COMMAND$*" : '.*\.\.' >/dev/null && deny "DON'T BE EVIL"
 
 
 is_admin() {
@@ -91,29 +90,28 @@ case $1 in
 			;;
 			refs/heads/*)
 				BRANCH="${2#refs/heads/}"
-				acc "(write|write\.$BRANCH)$" "BRANCH '$BRANCH' WRITE"
+				acc "(write|write\.$BRANCH)$" "Branch '$BRANCH' write denied"
 				
-				if expr $3 : '0*$' >/dev/null; then
-					# The branch is new
-					true
-				elif expr $4 : '0*$' >/dev/null; then
-					[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && deny "BRANCH '$BRANCH' DELETION DENIED"
-				elif [ $3 = "$(cd $R>/dev/null; git-merge-base $3 $4)" ]; then
-					# Update is fast-forward
-					[ "--no-ff" = "$(conf branch.$BRANCH.mergeoptions)" ] && deny 'FAST-FORWARD NOT ALLOWED'
-				else
-					[ "--ff-only" = "$(conf branch.$BRANCH.mergeoptions)" ] && deny 'ONLY FAST-FORWARD ARE ALLOWED'
-				fi
+				# The branch is new
+				expr $3 : '00*$' >/dev/null || {
+					MO="$(conf branch.$BRANCH.mergeoptions)"
+					if expr $4 : '00*$' >/dev/null; then
+						[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && deny "Branch '$BRANCH' deletion denied"
+					elif [ $3 = "$(cd $R>/dev/null; git-merge-base $3 $4)" ]; then
+						# Update is fast-forward
+						[ "--no-ff" = "$MO" ] && deny 'Fast-forward not allowed'
+					else
+						[ "--ff-only" = "$MO" ] && deny 'Only fast-forward are allowed'
+					fi
+				}
 			;;
 			*)
 				deny "Branch is not under refs/heads or refs/tags. What are you trying to do?"
 			;;
 		esac
-
-		exit 0
 	;;
 
-	repo)
+	repo) is_admin
 #-   $ ssh git@host repo
 #-   $ ssh git@host repo test.git init
 #-   $ ssh git@host repo test.git config access.read all
@@ -125,13 +123,12 @@ case $1 in
 #-   $ ssh git@host repo test.git config branch.devel.mergeoptions "--no-ff"
 #-   $ ssh git@host repo test.git config tags.denyOverwrite true
 #-   $ ssh git@host repo test.git drop
-		is_admin
 
 		test -e "$R" -o "$3" = "init" -o -z "$3" || deny "Repository $R not found"
 		
 		case "$3" in
 			init)
-				[ -e "$R" ] && deny "Repository exists"
+				#[ -e "$R" ] && deny "Repository exists"
 				mkdir -p "$R" && \
 				cd "$R" >/dev/null && \
 				git init --bare -q && \
@@ -152,12 +149,18 @@ case $1 in
 				conf fork.master "$R"
 			;;
 			*)
-				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(list_of_repos | xargs du -s)" >&2
+				[ -n "$2" -a -e $2 ] && {
+					printf "\nDisk usage: %s\n\nRepo '%s' permissions:\n" "$(du -hs $2 | cut -f1)" "$2"
+					conf --get-regexp '^access\.' | sed -e 's,^access\.,,' -e 's/,/|/g' | while read name RE;do
+						printf "$name [$RE] - %s\n" "$(sed -E -e 's/^.* USER=([^ ]*) GROUP=([^ ]*) .*$/\1 \2/' $KEYS | grep -E "\\b($RE)\\b" | cut -d" " -f1 | sort | tr "\n" " ")"
+					done
+				} >&2
+				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(list_of_repos)" >&2
 			;;
 		esac
 	;;
 
-	user)
+	user) is_admin
 #-   $ ssh git@host user
 #-   $ ssh git@host user richard
 #-   $ ssh git@host user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
@@ -165,11 +168,10 @@ case $1 in
 #-   $ ssh git@host user richard group all,admin
 #-   $ ssh git@host user richard del
 #-
-		is_admin
 
 		case $3 in
 			add)
-				grep -q " USER=$2 " $KEYS && deny 'USER EXISTS'
+				grep -q " USER=$2 " $KEYS && deny 'User exists'
 				printf "$LINE\n" "$2" "$4" >> $KEYS
 			;;
 			del)
@@ -182,10 +184,10 @@ case $1 in
 				sed -ie "/ USER=$2 /s/no-pty .*$/no-pty $4/" $KEYS
 			;;
 			*)
-				if [ -n "$2" ];then
+				[ -n "$2" ] && {
 					RE="$(acc_re $2)"
 					if [ -n "$RE" ]; then
-						printf "\nUSER '%s' PERMISSIONS:\n" "$2" >&2
+						printf "\nUser '%s' permissions:\n" "$2" >&2
 
 						list_of_repos | while read -r R; do 
 							NS=${R%% ->*}
@@ -196,11 +198,10 @@ case $1 in
 					else
 						echo "ERROR: User '$2' do not exists" >&2
 					fi
-				fi
+				}
+				printf "\nLIST OF USERS:\n%s\n" "$(sed -nE -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,\1 [\2],p' $KEYS)" >&2
 			;;
 		esac
-
-		printf "\nLIST OF USERS:\n%s\n" "$(sed -nE -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,\1 [\2],p' $KEYS)" >&2
 	;;
 
 	*)
@@ -212,13 +213,4 @@ log
 
 exit 0
 
-#- 
-#- Add GIT alias:
-#- 
-#-   $ git config --global alias.admin '!sh -c '\''URL=$(git config remote.origin.url) && ssh ${URL%%:*} $*'\'' -' 
-#- 
-#- Example commands without git alias:
-#- 
-#-   $ ssh git@repo.example.com user
-#-   $ ssh git@repo.example.com user show richard
-#- 
+
