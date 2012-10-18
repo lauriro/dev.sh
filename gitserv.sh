@@ -73,7 +73,8 @@ acc() {
 [ $# -eq 0 ] && set -- $SSH_ORIGINAL_COMMAND
 
 # unquoted repo name
-R=${2%\'};R=${R#*\'}
+R=${SSH_ORIGINAL_COMMAND-"$2"}
+R=${R%\'};R=${R#*\'}
 is_secure "$R"
 
 # When repo is a file then it is a fork
@@ -82,7 +83,7 @@ is_secure "$R"
 #- Example usage:
 #- 
 case $1 in
-	git-upload-pack|git-upload-archive|git-receive-pack)   # git pull and push
+	git-*)   # git pull and push
 		acc read
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED"
 		env GIT_NAMESPACE=$GIT_NAMESPACE git shell -c "$1 '$R'"
@@ -98,7 +99,7 @@ case $1 in
 			;;
 			refs/heads/*)
 				BRANCH="${2#refs/heads/}"
-				acc "(write|write\.$BRANCH)$" "Branch '$BRANCH' write denied"
+				acc "(write|write\.$BRANCH)$" "Repo $R Branch '$BRANCH' write denied for $USER"
 				
 				# The branch is new
 				expr $3 : '00*$' >/dev/null || {
@@ -117,6 +118,7 @@ case $1 in
 				deny "Branch is not under refs/heads or refs/tags. What are you trying to do?"
 			;;
 		esac
+		exit 0
 	;;
 
 	repo) is_admin
