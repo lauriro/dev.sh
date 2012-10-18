@@ -1,201 +1,242 @@
 #!/bin/sh
 #
-# Tool for git hosting
+# Tool for hosting git
 #
-#
-# THE BEER-WARE LICENSE
-# =====================
-#
-# <lauri@rooden.ee> wrote this file. As long as you retain this notice
-# you can do whatever you want with this stuff. If we meet some day, and
-# you think this stuff is worth it, you can buy me a beer in return.
-# -- Lauri Rooden
+#    @version  0.1
+#    @author   Lauri Rooden - https://github.com/lauriro/gitserv.sh
+#    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #
 
-# Exit the script if any statement returns a non-true return value
-set -e
 
+export LC_ALL=C
+
+cd "${0%/*}/." >/dev/null
+
+SELF="$PWD/${0##*/}"
+LOGI="$PWD/access.log"
+REPO="$PWD/repo"
 KEYS="$HOME/.ssh/authorized_keys"
+LINE="command=\"env USER=%s GROUP=all $SELF\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s"
 
-
-#- Example commands:
-#- 
-#-   $ git server user
-#-   $ git server user richard
-#-   $ git server user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git server user richard group all,admin
-#-   $ git server user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
-#-   $ git server user richard del
-#-   $ git server repo
-#-   $ git server repo test.git add
-#-   $ git server repo test.git config access.read all
-#-   $ git server repo test.git config access.write admin,richard
-#-   $ git server repo test.git config access.write.devel all
-#-   $ git server repo test.git config access.tag richard
-#-   $ git server repo test.git config branch.master.mergeoptions "--ff-only"
-#-   $ git server repo test.git config branch.master.denyDeletes true
-#-   $ git server repo test.git config branch.devel.mergeoptions "--no-ff"
-#-   $ git server repo test.git config tags.denyOverwrite true
-#-   $ git server repo test.git config --unset tags.denyOverwrite
-#-   $ git server repo test.git del
-#- 
-
-usage() {
-	sed -n "/^#- /s///p" "$0" >&2
-}
-
-CMD="$*"
+cd "$REPO" 2>/dev/null || mkdir -p "$REPO" && cd "$REPO" 2>/dev/null
 
 log() {
-	echo "$(date -u +'%Y-%m-%d %H:%M:%S') ${SSH_CLIENT%% *} $USER: $1$CMD" >> access.log
+	echo "$(date -u +'%Y-%m-%d %H:%M:%S') ${SSH_CLIENT%% *} $USER: $1$SSH_ORIGINAL_COMMAND" >> $LOGI
 }
 
 deny() {
 	log "ERROR: $1: "
-	printf '\n*** %s ***\n\n' "$1" >&2
+	printf "error: %s\n" "$1" >&2
 	exit 1
 }
 
+
 # deny Ctrl-C and unwanted chars
 trap "deny 'BYE';kill -9 $$" 1 2 3 6 15
-expr "$*" : '[[:alnum:] ,'\''./_@=+-]*$' >/dev/null || deny "DON'T BE NAUGHTY"
+expr "$SSH_ORIGINAL_COMMAND$*" : '[-+ [:alnum:],'\''./_@=]*$' >/dev/null || deny "DON'T BE NAUGHTY"
 
-list_of_repos() {
-	grep -Ilr --include=*config 'bare = true' * | sort -k2 | sed -e 's,/config$,,'
+is_admin() {
+	[ -z "$SSH_CLIENT" ] || grep -q " USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'Admin access denied'
 }
 
-access_re() {
+is_secure() {
+	expr "$1" : '.*\.\.' >/dev/null && deny "DON'T BE EVIL"
+	expr "$1" : '[^[:alnum:]]' >/dev/null && deny "DON'T BE CRUEL"
+}
+
+conf() {
+	[ -n "$GIT_NAMESPACE" ] && FILE=$GIT_NAMESPACE || FILE="$R/config"
+	git config --file "$FILE" $@
+}
+
+list_of_repos() {
+	{
+		grep -Ilr --include=*config '^\s*bare = true' * 2>/dev/null | sed -e 's,/config$,,'
+		grep -Ir --include=*.git '^\s*master = .*' * 2>/dev/null | sed 's/:.*= / -> /'
+	} | sort
+}
+
+list_of_users() {
+	sed -E -e 's/^.* USER=([^ ]*) GROUP=([^ ]*) .*$/\1 \2/' $KEYS 
+}
+
+acc_re() {
 	sed -E -e 's/^.*USER='$1' GROUP=([^ ]*) .*$/ .*\\b('$1'|\1)\\b/;ta' -e d -e :a -e 's/,/|/g' $KEYS
 }
 
-access_to_repo() {
-	git --git-dir=$1 config --get-regexp "^access\.$2" | \
-	grep -E -q "$(access_re $USER)" || deny "REPOSITORY '${1##$HOME/}' $3 ACCESS DENIED"
+acc() {
+	conf --get-regexp "^access\.$1" | \
+	grep -E -q "$(acc_re $USER)" || deny "${2-"Repository not found"}"
 }
 
-is_admin() {
-	grep -q "USER=$USER GROUP=[^ ]*\badmin\b" $KEYS || deny 'ADMIN ACCESS DENIED'
-}
 
+[ $# -eq 0 ] && set -- $SSH_ORIGINAL_COMMAND
+
+# unquoted repo name
+R=${SSH_ORIGINAL_COMMAND-"$2"}
+R=${R%\'};R=${R#*\'}
+is_secure "$R"
+
+# When repo is a file then it is a fork
+[ -f "$R" ] && GIT_NAMESPACE=$R && R=$(conf fork.master) && is_secure "$R"
+
+#- Example usage:
+#- 
 case $1 in
-	# allow git pull and push
-	git-upload-pack|git-receive-pack)
-		# remove ' from repo name
-		eval "GIT_DIR=$2"
-		
-		access_to_repo $GIT_DIR 'read' 'READ'
-
-		# branch based access control is in update-hook
-		[ "$1" = "git-receive-pack" ] && access_to_repo $GIT_DIR 'write' 'WRITE'
-
-		git shell -c "$*"
+	git-*)   # git pull and push
+		acc read
+		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED"
+		env GIT_NAMESPACE=$GIT_NAMESPACE git shell -c "$1 '$R'"
 	;;
 
-	update-hook)
+	update-hook)         # branch based access control
 
 		case $2 in
 			refs/tags/*)
-				access_to_repo $PWD '(write|tag)$' 'TAGGING'
-				[ "true" = "$(git config --bool tags.denyOverwrite)" ] &&
+				acc '(write|tag)$'
+				[ "true" = "$(conf --bool tags.denyOverwrite)" ] &&
 				git rev-parse --verify -q "$2" && deny "You can't overwrite an existing tag"
 			;;
 			refs/heads/*)
-				BRANCH="${2##refs/heads/}"
-				access_to_repo $PWD "(write|write\.$BRANCH)$" "BRANCH '$BRANCH' WRITE"
+				BRANCH="${2#refs/heads/}"
+				acc "(write|write\.$BRANCH)$" "Repo $R Branch '$BRANCH' write denied for $USER"
 				
-				if expr "$3" : '0*$' >/dev/null; then
-					# The branch is new
-					echo "The branch $BRANCH is new..." >&2
-				elif expr "$4" : '0*$' >/dev/null; then
-					[ "true" = "$(git config --bool branch.$BRANCH.denyDeletes)" ] && deny "BRANCH '$BRANCH' DELETION DENIED"
-				elif [ "$3" = "$(git-merge-base "$3" "$4")" ]; then
-					# Update is fast-forward
-					[ "--no-ff" = "$(git config branch.$BRANCH.mergeoptions)" ] && deny 'FAST-FORWARD NOT ALLOWED'
-				else
-					[ "--ff-only" = "$(git config branch.$BRANCH.mergeoptions)" ] && deny 'ONLY FAST-FORWARD ARE ALLOWED'
-				fi
+				# The branch is new
+				expr $3 : '00*$' >/dev/null || {
+					MO="$(conf branch.$BRANCH.mergeoptions)"
+					if expr $4 : '00*$' >/dev/null; then
+						[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && deny "Branch '$BRANCH' deletion denied"
+					elif [ $3 = "$(cd $R>/dev/null; git-merge-base $3 $4)" ]; then
+						# Update is fast-forward
+						[ "--no-ff" = "$MO" ] && deny 'Fast-forward not allowed'
+					else
+						[ "--ff-only" = "$MO" ] && deny 'Only fast-forward are allowed'
+					fi
+				}
 			;;
 			*)
-				deny "Branch is not under refs/heads or refs/tags.  What are you trying to do?"
+				deny "Branch is not under refs/heads or refs/tags. What are you trying to do?"
 			;;
 		esac
-
 		exit 0
 	;;
 
-	u*) # user
-		is_admin
+	repo) is_admin
+#-   $ ssh git@host repo
+#-   $ ssh git@host repo test.git init
+#-   $ ssh git@host repo test.git config access.read all
+#-   $ ssh git@host repo test.git config access.write admin,richard
+#-   $ ssh git@host repo test.git config access.write.devel all
+#-   $ ssh git@host repo test.git config access.tag richard
+#-   $ ssh git@host repo test.git config branch.master.denyDeletes true
+#-   $ ssh git@host repo test.git config branch.master.mergeoptions "--ff-only"
+#-   $ ssh git@host repo test.git config branch.devel.mergeoptions "--no-ff"
+#-   $ ssh git@host repo test.git config tags.denyOverwrite true
+#-   $ ssh git@host repo test.git describe "My cool repo"
+#-   $ ssh git@host repo test.git fork new_repo.git
+#-   $ ssh git@host repo test.git drop
 
-		case $3 in
-			a*) # add
-				grep -q "USER=$2 " $KEYS && deny 'USER EXISTS'
-				echo "command=\"env USER=$2 GROUP=all $0 \$SSH_ORIGINAL_COMMAND\",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty $4 $5" >> $KEYS
-			;;
-			d*) # del
-				sed -ie "/USER=$2 /d" $KEYS
-			;;
-			g*) # group
-				sed -ie "/USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
-			;;
-			k*) # key
-				sed -ie "/USER=$2 /s/no-pty .*$/no-pty $4 $5/" $KEYS
-			;;
-			*)
-				if [ "$2" ]; then
-					USER_RE="$(access_re $2)"
-					if [ "$USER_RE" ]; then
-						echo "USER '$2' PERMISSIONS:" >&2
-
-						list_of_repos | while read R; do 
-							ACC=$(git --git-dir=$R config --get-regexp '^access\.' | grep -E "$USER_RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
-							[ "$ACC" ] && echo "  - $R ["$ACC"]" >&2
-						done
-					else
-						echo "*** USER '$2' DO NOT EXISTS ***" >&2
-					fi
-				fi
-
-				echo 'LIST OF USERS:' >&2
-				sed -E -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,  - \1 [\2],;t' -e d $KEYS >&2
-			;;
-		esac
-	;;
-
-	r*) # repo
-		is_admin
-
-		case $3 in
-			a*) # add new repo
-				[ -d $2 ] && deny "REPOSITORY $2 EXISTS"
-				mkdir -p $2 && \
-				cd $2 && \
-				git init --bare && \
-				printf '#!/bin/sh\n%s update-hook \$@\n' "$0" > hooks/update && \
+		test -e "$R" -o "$3" = "init" -o -z "$3" || deny "Repository $R not found"
+		
+		case "$3" in
+			init)
+				[ -e "$R" ] && deny "Repository exists"
+				mkdir -p "$R" && \
+				cd "$R" >/dev/null && \
+				git init --bare -q && \
+				printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > hooks/update && \
 				chmod +x hooks/update
 			;;
-			d*) # del
-				[ -d $2 ] || deny "REPOSITORY $2 DO NOT EXISTS"
-
+			config)
+				conf ${4-'-l'} $5 >&2
+			;;
+			describe)
+				# TODO:2012-10-18:lauriro: Add namespaces support for description
+				[ "$R" = "$2" ] && {
+					shift 3
+					echo "$*" > $R/description
+				}
+			;;
+			drop)
+				is_secure "$2"
 				# Backup repo
-				(cd $2 && tar -czf "../$2.$(date -u +'%Y%m%d%H%M%S').tar.gz" *)
+				tar -czf "$2.$(date -u +'%Y%m%d%H%M%S').tar.gz" $2
+
+				# TODO:2012-10-18:lauriro: Remove namespaced data from repo
 				rm -rf $2
 			;;
-			c*) # config
-				[ -d $2 ] || deny "REPOSITORY $2 DO NOT EXISTS"
-				git --git-dir="$HOME/$2" config ${4-'-l'} $5 >&2
+			fork)
+				is_secure "$4"
+				[ -e "$4" ] && deny "Repository exists"
+				GIT_NAMESPACE="$4"
+				[ "${4%/*}" = "$4" ] || mkdir -p ${4%/*}
+				conf fork.master "$R"
 			;;
-			*) # List of repos
-				echo 'LIST OF REPOSITORIES:' >&2
-				du -shc $(list_of_repos) | sed -e 's,^,  - ,' >&2
+			*)
+				[ -n "$2" -a -e "$2" ] && {
+					is_secure "$2"
+					[ "$R" = "$2" ] && cat $R/description
+					printf "\nDisk usage: %s\n\nRepo '%s' permissions:\n" "$(du -hs $2 | cut -f1)" "$2"
+					conf --get-regexp '^access\.' | sed -e 's,^access\.,,' -e 's/,/|/g' | while read name RE;do
+						printf "$name [$RE] - %s\n" "$(list_of_users | grep -E "\\b($RE)\\b" | cut -d" " -f1 | sort | tr "\n" " ")"
+					done
+				} >&2
+				printf "\nLIST OF REPOSITORIES:\n%s\n" "$(list_of_repos)" >&2
 			;;
 		esac
 	;;
+
+	user) is_admin
+#-   $ ssh git@host user
+#-   $ ssh git@host user richard
+#-   $ ssh git@host user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ ssh git@host user richard group all,admin
+#-   $ ssh git@host user richard del
+#-
+
+		case $3 in
+			add)
+				grep -q " USER=$2 " $KEYS && deny 'User exists'
+				printf "$LINE\n" "$2" "$4" >> $KEYS
+			;;
+			del)
+				sed -ie "/ USER=$2 /d" $KEYS
+			;;
+			group)
+				sed -ie "/ USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
+			;;
+			key)
+				sed -ie "/ USER=$2 /s/no-pty .*$/no-pty $4/" $KEYS
+			;;
+			*)
+				[ -n "$2" ] && {
+					RE="$(acc_re $2)"
+					if [ -n "$RE" ]; then
+						printf "\nUser '%s' permissions:\n" "$2" >&2
+
+						list_of_repos | while read -r R; do 
+							NS=${R%% ->*}
+							[ "$NS" != "$R" ] && GIT_NAMESPACE=$NS || GIT_NAMESPACE=""
+							ACC=$(conf --get-regexp '^access\.' | grep -E "$RE" | sed -e 's,^access\.,,' -e 's, .*$,,')
+							[ "$ACC" ] && echo "$R ["$ACC"]" >&2
+						done
+					else
+						echo "ERROR: User '$2' do not exists" >&2
+					fi
+				}
+				printf "\nLIST OF USERS:\n%s\n" "$(sed -nE -e 's,^.*USER=([^ ]*) GROUP=([^ ]*).*$,\1 [\2],p' $KEYS)" >&2
+			;;
+		esac
+	;;
+
 	*)
-		usage
+		sed -n "/^#- /s///p" "$SELF" >&2
 	;;
 esac
 
 log
 
 exit 0
+
 
