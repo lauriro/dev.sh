@@ -2,7 +2,7 @@
 #
 # Tool for hosting git
 #
-#    @version  0.1-pre
+#    @version  0.1
 #    @author   Lauri Rooden - https://github.com/lauriro/gitserv.sh
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #
