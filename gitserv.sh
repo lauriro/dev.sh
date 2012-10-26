@@ -73,8 +73,7 @@ acc() {
 [ $# -eq 0 ] && set -- $SSH_ORIGINAL_COMMAND
 
 # unquoted repo name
-R=${SSH_ORIGINAL_COMMAND-"$2"}
-R=${R%\'};R=${R#*\'}
+R=${2%\'};R=${R#*\'}
 is_secure "$R"
 
 # When repo is a file then it is a fork
@@ -90,6 +89,7 @@ case $1 in
 	;;
 
 	update-hook)         # branch based access control
+		R=${SSH_ORIGINAL_COMMAND%\'};R=${R#*\'}
 
 		case $2 in
 			refs/tags/*)
