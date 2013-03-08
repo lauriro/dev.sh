@@ -50,6 +50,6 @@ Usage
 
 ### Licence
 
-Copyright (c) 2012 Lauri Rooden &lt;lauri@rooden.ee&gt;  
+Copyright (c) 2012 Lauri Rooden <lauri@rooden.ee>  
 [The MIT License](http://lauri.rooden.ee/mit-license.txt)
 
