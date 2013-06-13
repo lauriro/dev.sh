@@ -1,24 +1,28 @@
+Gitserv
+=======
+
+Tool for hosting git repositories.
+
 Install
 -------
 
-- Create a user `git`
-- Prepare `git` ssh config
+    # Create a user `git`
+    useradd -m git
+    su git
+    # Prepare `git` ssh config
+    cd /home/git/
+    mkdir .ssh
+    chmod 0700 ~/.ssh
+    touch ~/.ssh/authorized_keys
+    chmod 0600 ~/.ssh/authorized_keys
+    # Get sshd wrapper
+    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv.sh/master/gitserv.sh
+    chmod +x gitserv.sh
 
-        $ cd /home/git/
-        $ mkdir .ssh
-        $ chmod 0700 ~/.ssh
-        $ touch ~/.ssh/authorized_keys
-        $ chmod 0600 ~/.ssh/authorized_keys
-
-- Get sshd wraper
-
-        $ wget -O gitserv.sh https://raw.github.com/lauriro/gitserv.sh/devel/gitserv.sh
-        $ chmod +x gitserv.sh
-
-- Make initial config
-
-        $ ./gitserv.sh user richard add 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
-        $ ./gitserv.sh user richard group 'all,admin'
+    # Make initial config
+    ./gitserv.sh user richard add
+    ./gitserv.sh user richard key 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
+    ./gitserv.sh user richard group 'all,admin'
 
 
 Usage
@@ -42,7 +46,7 @@ Usage
       $ ssh git@host repo test.git drop
       $ ssh git@host user
       $ ssh git@host user richard
-      $ ssh git@host user richard add 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+      $ ssh git@host user richard add
       $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
       $ ssh git@host user richard group all,admin
       $ ssh git@host user richard del
