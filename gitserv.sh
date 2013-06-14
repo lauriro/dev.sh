@@ -3,7 +3,7 @@
 # Tool for hosting git repositories.
 #
 #    @version  0.2
-#    @author   Lauri Rooden - https://github.com/lauriro/gitserv.sh
+#    @author   Lauri Rooden - https://github.com/lauriro/gitserv
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #
 
@@ -207,7 +207,7 @@ case $1 in
 #-   $ ssh git@host user
 #-   $ ssh git@host user richard
 #-   $ ssh git@host user richard add
-#-   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+#-   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' richard@example.com
 #-   $ ssh git@host user richard group all,admin
 #-   $ ssh git@host user richard del
 #-

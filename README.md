@@ -10,13 +10,13 @@ Install
     useradd -m git
     su git
     # Prepare `git` ssh config
-    cd /home/git/
-    mkdir .ssh
+    cd ~
+    mkdir ~/.ssh
     chmod 0700 ~/.ssh
     touch ~/.ssh/authorized_keys
     chmod 0600 ~/.ssh/authorized_keys
     # Get sshd wrapper
-    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv.sh/master/gitserv.sh
+    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv/master/gitserv.sh
     chmod +x gitserv.sh
 
     # Make initial config
@@ -47,7 +47,7 @@ Usage
       $ ssh git@host user
       $ ssh git@host user richard
       $ ssh git@host user richard add
-      $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' user@example.com
+      $ ssh git@host user richard key 'ssh-rsa AAAAB3N...50i8Q==' richard@example.com
       $ ssh git@host user richard group all,admin
       $ ssh git@host user richard del
 
