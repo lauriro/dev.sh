@@ -101,7 +101,7 @@ case $1 in
 			refs/heads/*)
 				BRANCH="${2#refs/heads/}"
 				acc "(write|write\.$BRANCH)$" "Repo $R Branch '$BRANCH' write denied"
-				
+
 				# The branch is new
 				expr $3 : '00*$' >/dev/null || {
 					MO="$(conf branch.$BRANCH.mergeoptions)"
@@ -138,7 +138,7 @@ case $1 in
 #-   $ ssh git@host repo test.git drop
 
 		test -e "$R" -o "$3" = "init" -o -z "$3" || die "Repository '$R' not found"
-		
+
 		case "$3" in
 			init)
 				is_safe "$R"
@@ -233,7 +233,7 @@ case $1 in
 					if [ -n "$RE" ]; then
 						printf "User: `get_users $2`\nAccesses to:\n"
 
-						get_repos | while read -r R; do 
+						get_repos | while read -r R; do
 							NS=${R%% ->*}
 							[ "$NS" != "$R" ] && GIT_NAMESPACE=$NS || GIT_NAMESPACE=""
 							ACC=$(conf --get-regexp '^access\.' | sed -Ee "/$RE/!d;s,^access\.,,;s, .*$,,")
