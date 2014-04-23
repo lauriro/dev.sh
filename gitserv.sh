@@ -26,7 +26,7 @@ log() {
 die() {
 	log "$1" error
 	echo "error: $1" >&2
-	exit 1
+	exit 2
 }
 
 is_admin() {
@@ -89,6 +89,7 @@ fi
 #- 
 case $1 in
 	git-*)   # git pull and push
+		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 		if [ -n "$BACKEND" ]; then
 			HOST="host=$BACKEND"
 			SIZE=$(expr ${#1} + ${#R} + ${#HOST} + 7)
@@ -100,7 +101,6 @@ case $1 in
 			cat - >&4
 			rm $PIPE
 		else
-			[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 			env GIT_NAMESPACE=$GIT_NAMESPACE git shell -c "$1 '$R'"
 		fi
 	;;
