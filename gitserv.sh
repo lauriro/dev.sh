@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# Tool for hosting git repositories.
+# Host a git server with git-shell
 #
 #    @version  0.2
 #    @author   Lauri Rooden - https://github.com/lauriro/gitserv
@@ -10,83 +10,64 @@
 
 export LC_ALL=C
 
-ROOT="$HOME/repo"
-KEYS="$HOME/.ssh/authorized_keys"
+ROOT=$HOME/repo
+LOGS=$HOME/logs/gitserv.log
+KEYS=$HOME/.ssh/authorized_keys
 
-SELF="$(cd "${0%/*}";pwd)/${0##*/}"
-CMD="$SSH_ORIGINAL_COMMAND $*"
-
+CMD=${SSH_ORIGINAL_COMMAND-"$*"}
 
 
 log() {
-	local TXT="${SSH_CLIENT%% *} $USER: $1 -- $CMD"
-	logger -t gitserv -p ${2-"info"} "$TXT" || echo "$(date -u +"%F %T") $TXT" >> ${SELF%.*}.log
+	printf "%s %s %s: %s -- %s\n" \
+		"$(date -u +"%F %T")" "${SSH_CLIENT%% *}" "$USER" "$1" "$CMD" >> $LOGS
 }
 
 die() {
 	log "$1" error
-	echo "error: $1" >&2
+	printf "error: %s\n" "$1${2+"\n"}$2" >&2
 	exit 2
-}
-
-is_admin() {
-	[ -z "$SSH_CLIENT" ] || grep " USER=$USER GROUP=[^ ]*\badmin\b" $KEYS >/dev/null || die 'Admin access denied'
-}
-
-is_safe() {
-	case "$1" in
-		*..*) die "DON'T BE EVIL";;
-		*[!-a-zA-Z0-9_.,/]*) die "DON'T BE CRUEL";;
-		#"") die "Repo name?";;
-	esac
 }
 
 conf() {
 	git config --file "${FORK:-$REPO/config}" $@
 }
 
-get_repos() {
-	{
-		grep -Ilr --include=*config '^\s*bare = true' * | sed -e 's,/config$,,'
-		grep -Ir --include=*.git '^\s*upstream = .*' * | sed 's/:.*= / -> /'
-	} 2>/dev/null | sort
-}
-
-get_users() {
-	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEYS
-}
-
-acc_re() {
-	get_users $1 | tr ", " "|" | tr -d "[]"
-}
-
 acc() {
-	conf --get-regexp "^access\.$1" | \
-	grep -Eq "$(acc_re $USER)" || die "${2-"Repository not found"}"
+	expr ",all,$USER,$GROUP," : ".*,\($(conf --get-regexp "^access\.$1")\)," >/dev/null \
+		|| die "${2-"Repository not found"}"
 }
 
+read_repo() {
+	# unquote repo name
+	REPO=${1%\'}
+	REPO=${REPO#*\'}
 
-{ cd "$ROOT" || mkdir -p "$ROOT" && cd "$ROOT"; } >/dev/null 2>&1
+	# append .git when needed
+	REPO=${REPO%.git}.git
+
+	# When repo is a file then it is a fork
+	if [ -f "$REPO" ]; then
+		FORK=$REPO
+		REPO=$(conf fork.upstream)
+		BACKEND=$(conf fork.backend)
+	fi
+}
 
 # deny Ctrl-C and unwanted chars
-trap "die 'trap';kill -9 $$" 1 2 3 6 15
-expr "$CMD" : '[-a-zA-Z0-9_ +./,'\''@=]*$' >/dev/null || die "DON'T BE NAUGHTY"
+trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
 
-[ $# -eq 0 ] && set -- $CMD
+expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
-# unquoted repo name
-REPO=${2%\'};REPO=${REPO#*\'}
+test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
 
-# When repo is a file then it is a fork
-if [ -f "$REPO" ]; then
-	FORK=$REPO
-	REPO=$(conf fork.upstream)
-	BACKEND=$(conf fork.backend)
-fi
 
-#- Example usage:
-#- 
-case $1 in
+if [ "${0##*/}" = "gitserv.sh" ]; then
+	set -- $CMD
+
+	read_repo "$2"
+
+
+	case $1 in
 	git-*)   # git pull and push
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 		if [ -n "$BACKEND" ]; then
@@ -100,176 +81,43 @@ case $1 in
 			rm $PIPE
 		else
 			env GIT_NAMESPACE=$FORK git shell -c "$1 '$REPO'"
+
+			# Assigns the original repository to a remote called "upstream"
+			if [ -n $FORK ]; then
+				printf "%s is a fork, you may want to add an upstream:" "$FORK" >&2
+				printf "   git remote add upstream %s" "$REPO" >&2
+			fi
+
+			# remote: This repository moved. Please use the new location:
+			# remote:   https://github.com/lauriro/lauriro.github.io.git
 		fi
-	;;
-
-	update-hook)         # branch based access control
-		REPO=${SSH_ORIGINAL_COMMAND%\'};REPO=${REPO#*\'}
-
-		case $2 in
-			refs/tags/*)
-				acc '(write|tag)$'
-				[ "true" = "$(conf --bool tags.denyOverwrite)" ] &&
-				git rev-parse --verify -q "$2" && die "You can't overwrite an existing tag"
-			;;
-			refs/heads/*)
-				BRANCH="${2#refs/heads/}"
-				acc "(write|write\.$BRANCH)$" "Repo $REPO Branch '$BRANCH' write denied"
-
-				# The branch is new
-				expr $3 : '00*$' >/dev/null || {
-					MO="$(conf branch.$BRANCH.mergeoptions)"
-					if expr $4 : '00*$' >/dev/null; then
-						[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && die "Branch '$BRANCH' deletion denied"
-					elif [ $3 = "$(cd $REPO>/dev/null; git-merge-base $3 $4)" ]; then
-						# Update is fast-forward
-						[ "--no-ff" = "$MO" ] && die 'Fast-forward not allowed'
-					else
-						[ "--ff-only" = "$MO" ] && die 'Only fast-forward are allowed'
-					fi
-				}
-			;;
-			*)
-				die "Branch is not under refs/heads or refs/tags. What are you trying to do?"
-			;;
-		esac
-		exit 0
-	;;
-
-	r*) is_admin
-#-   $ ssh git@host repo
-#-   $ ssh git@host repo test.git init
-#-   $ ssh git@host repo test.git config access.read all
-#-   $ ssh git@host repo test.git config access.write admin,richard
-#-   $ ssh git@host repo test.git config access.write.devel all
-#-   $ ssh git@host repo test.git config access.tag richard
-#-   $ ssh git@host repo test.git config branch.master.denyDeletes true
-#-   $ ssh git@host repo test.git config branch.master.mergeoptions "--ff-only"
-#-   $ ssh git@host repo test.git config branch.devel.mergeoptions "--no-ff"
-#-   $ ssh git@host repo test.git config tags.denyOverwrite true
-#-   $ ssh git@host repo test.git describe "My cool repo"
-#-   $ ssh git@host repo test.git fork new_repo.git
-#-   $ ssh git@host repo test.git drop
-
-		test -e "$REPO" -o "$3" = "init" -o -z "$3" || die "Repository '$REPO' not found"
-
-		case "$3" in
-			init)
-				is_safe "$REPO"
-				[ -e "$REPO" ] && die "Repository exists"
-				git init --bare --shared -q "$REPO" && \
-				printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > $REPO/hooks/update && \
-				chmod +x $REPO/hooks/update
-			;;
-			fork)
-				is_safe "$4"
-				[ -e "$4" ] && die "Repository exists"
-				FORK="$4"
-				[ "${4%/*}" = "$4" ] || mkdir -p ${4%/*}
-				conf fork.upstream "$REPO"
-			;;
-			c*)
-				conf ${4-'-l'} $5 >&2
-				# set default branch
-				#git symbolic-ref HEAD refs/heads/master
-				# make `git pull` on master always use rebase
-				#$ git config branch.master.rebase true
-				#You can also set up a global option 
-				# to set the last property for every new tracked branch:
-
-				# setup rebase for every tracking branch
-				#$ git config --global branch.autosetuprebase always
-
-
-				#Fetch a group of remotes
-				#$ git config remotes.default 'origin mislav staging'
-				#$ git remote update
-				# fetches remotes "origin", "mislav", and "staging"
-				# You can also define a named group like so:
-				#$ git config remotes.mygroup 'remote1 remote2 ...'
-				#$ git fetch mygroup
-			;;
-			des*)
-				[ "$REPO" = "$2" ] || die "Forks does not have descriptions"
-				shift 3
-				echo "$*" > $REPO/description
-			;;
-			def*)
-				git --git-dir "$REPO" symbolic-ref HEAD refs/heads/$4
-				;;
-			drop)
-				# Backup repo
-				tar -czf "$2.$(date -u +'%Y%m%d%H%M%S').tar.gz" $2
-
-				# TODO:2012-10-18:lauriro: Remove namespaced data from repo
-				rm -rf $2
-			;;
-			*)
-				if [ -e "$2" ]; then
-					printf "Repo: $2 - $(cat $REPO/description)\nSize: $(du -hs $2|cut -f1)\n\nPermissions:\n"
-					conf --get-regexp '^access\.' | tr ",=" "| " | while read name RE;do
-						echo "$name [$RE] - $(get_users|grep -E "\\b($RE)\\b"|cut -d" " -f1|sort|tr "\n" " ")"
-					done
-				else
-					printf "LIST OF REPOSITORIES:\n$(get_repos)\n"
-				fi >&2
-			;;
-		esac
-	;;
-
-	u*) is_admin
-#-   $ ssh git@host user
-#-   $ ssh git@host user richard
-#-   $ ssh git@host user richard add
-#-   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' richard@example.com
-#-   $ ssh git@host user richard group all,admin
-#-   $ ssh git@host user richard del
-#-
-
-		case $3 in
-			a*) # Add
-				grep -q " USER=$2 " $KEYS && die 'User exists'
-				printf 'command="env USER=%s GROUP=all %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty NOKEY\n' "$2" "$SELF" >> $KEYS
-			;;
-			del) # Del
-				sed -ie "/ USER=$2 /d" $KEYS
-			;;
-			g*) # Group
-				is_safe "$4"
-				sed -ie "/ USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
-			;;
-			k*) # Key
-				sed -ie "/ USER=$2 /s@no-pty .*$@no-pty $4@" $KEYS
-			;;
-			*)
-				if [ -n "$2" ]; then
-					RE="$(acc_re $2)"
-					if [ -n "$RE" ]; then
-						printf "User: $(get_users $2)\nAccesses to:\n"
-
-						get_repos | while read -r NAME; do
-							NS=${NAME%% ->*}
-							[ "$NS" != "$NAME" ] && FORK=$NS || FORK=""
-							ACC=$(conf --get-regexp '^access\.' | sed -Ee "/$RE/!d;s,^access\.,,;s, .*$,,")
-							[ "$ACC" ] && echo "$NAME ["$ACC"]"
-						done
-					else
-						echo "error: User '$2' do not exists"
-					fi
-				else
-					printf "LIST OF USERS:\n$(get_users)\n"
-				fi >&2
-			;;
-		esac
-	;;
-
+		;;
+	?*)
+		exec git shell -c "$@" ;;
 	*)
-		sed -n "/^#- /s///p" "$SELF" >&2
-	;;
-esac
+		exec git shell ;;
+	esac
 
-log
+	log
+	exit 0
+fi
 
-exit 0
+
+SELF="$(cd "${0%/*}";pwd)/${0##*/}"
+column() {
+	git column --mode=auto --padding=2 --indent="   "
+}
+
+ask() {
+	while true; do
+		printf "${1:-"Are you sure?"} [${2:-"Y/n"}] "
+		read r
+		case "$r${2:-"Y/n"}" in
+			y*|Y*) return 0 ;;
+			n*|N*) return 1 ;;
+			*) printf "Please answer yes or no." ;;
+		esac
+	done
+}
 
 
