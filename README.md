@@ -3,11 +3,47 @@ Gitserv
 
 Tool for hosting git repositories.
 
+
+```
+$ git for-each-ref --sort=-committerdate --format='%(refname:short) Updated %(committerdate:relative) by %(committername)' refs/heads/
+master Updated 7 months ago by Lauri Rooden
+
+
+# get the tracking-branch name
+tracking_branch=$(git for-each-ref --format='%(upstream:short)' $(git symbolic-ref -q HEAD))
+# creates global variables $1 and $2 based on left vs. right tracking
+# inspired by @adam_spiers
+set -- $(git rev-list --left-right --count $tracking_branch...HEAD)
+behind=$1
+ahead=$2
+
+# In modern versions of git, @{u} points to the upstream of the current branch, if one is set.
+# So to count how many commits you are behind the remote tracking branch:
+git rev-list HEAD..@{u} | wc -l
+# And to see how far you are ahead of the remote, just switch the order:
+git rev-list @{u}..HEAD | wc -l
+# For a more human-readable summary, you could ask for a log instead:
+git log --pretty=oneline @{u}..HEAD
+
+
+$ git ls-tree -r --name-only HEAD | while read filename; do   echo "$filename $(git log -1 --format="%h:%s:%ar" -- $filename)"; done
+README.md 65162b1:Update Readme:1 year, 5 months ago
+gitserv.sh 53317c7:Cleanup:7 months ago
+
+
+```
+
+
+
 Install
 -------
 
-    # Create a user `git`
-    useradd -m git
+```sh
+# Create a user `git`
+useradd -m git
+# Set better shell
+chsh -s /bin/dash git
+
     su git
     # Prepare `git` ssh config
     cd ~
@@ -23,6 +59,16 @@ Install
     ./gitserv.sh user richard add
     ./gitserv.sh user richard key 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
     ./gitserv.sh user richard group 'all,admin'
+
+Conf
+----
+
+```
+# Override logger
+log() {
+	logger -t gitserv -p ${2-"info"} "${SSH_CLIENT%% *} $USER: $1 -- $SSH_ORIGINAL_COMMAND"
+}
+```
 
 
 Usage
