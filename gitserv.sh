@@ -42,8 +42,7 @@ is_safe() {
 }
 
 conf() {
-	[ -n "$FORK" ] && FILE=$FORK || FILE="$REPO/config"
-	git config --file "$FILE" $@
+	git config --file "${FORK:-$REPO/config}" $@
 }
 
 get_repos() {
@@ -240,7 +239,7 @@ case $1 in
 				sed -ie "/ USER=$2 /s/GROUP=[^ ]*/GROUP=$4/" $KEYS
 			;;
 			k*) # Key
-				sed -ie "/ USER=$2 /s/no-pty .*$/no-pty $4/" $KEYS
+				sed -ie "/ USER=$2 /s@no-pty .*$@no-pty $4@" $KEYS
 			;;
 			*)
 				if [ -n "$2" ]; then
