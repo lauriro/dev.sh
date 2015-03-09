@@ -91,13 +91,12 @@ case $1 in
 	git-*)   # git pull and push
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 		if [ -n "$BACKEND" ]; then
-			HOST="host=$BACKEND"
-			SIZE=$(expr ${#1} + ${#R} + ${#HOST} + 7)
+			SIZE=$(expr length "$1$R$BACKEND" + 13)
 			PIPE=$(mktemp -u)
 			mkfifo -m 600 $PIPE
 			exec 4<>"$PIPE"
 			nc localhost 9418 <&4 &
-			printf "%04x$1 $R\0$HOST\0" $SIZE >&4
+			printf "%04x%s /%s\0host=%s\0" $SIZE "$1" "$R" "$BACKEND" >&4
 			cat - >&4
 			rm $PIPE
 		else
