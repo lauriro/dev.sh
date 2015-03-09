@@ -13,14 +13,14 @@ export LC_ALL=C
 ROOT="$HOME/repo"
 KEYS="$HOME/.ssh/authorized_keys"
 
-SELF="`cd "${0%/*}";pwd`/${0##*/}"
+SELF="$(cd "${0%/*}";pwd)/${0##*/}"
 CMD="$SSH_ORIGINAL_COMMAND $*"
 
 
 
 log() {
 	local TXT="${SSH_CLIENT%% *} $USER: $1 -- $CMD"
-	logger -t gitserv -p ${2-"info"} "$TXT" || echo "`date -u +"%F %T"` $TXT" >> ${SELF%.*}.log
+	logger -t gitserv -p ${2-"info"} "$TXT" || echo "$(date -u +"%F %T") $TXT" >> ${SELF%.*}.log
 }
 
 die() {
@@ -42,7 +42,7 @@ is_safe() {
 }
 
 conf() {
-	[ -n "$GIT_NAMESPACE" ] && FILE=$GIT_NAMESPACE || FILE="$R/config"
+	[ -n "$FORK" ] && FILE=$FORK || FILE="$REPO/config"
 	git config --file "$FILE" $@
 }
 
@@ -76,12 +76,12 @@ expr "$CMD" : '[-a-zA-Z0-9_ +./,'\''@=]*$' >/dev/null || die "DON'T BE NAUGHTY"
 [ $# -eq 0 ] && set -- $CMD
 
 # unquoted repo name
-R=${2%\'};R=${R#*\'}
+REPO=${2%\'};REPO=${REPO#*\'}
 
 # When repo is a file then it is a fork
-if [ -f "$R" ]; then
-	GIT_NAMESPACE=$R
-	R=$(conf fork.upstream)
+if [ -f "$REPO" ]; then
+	FORK=$REPO
+	REPO=$(conf fork.upstream)
 	BACKEND=$(conf fork.backend)
 fi
 
@@ -91,21 +91,21 @@ case $1 in
 	git-*)   # git pull and push
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 		if [ -n "$BACKEND" ]; then
-			SIZE=$(expr length "$1$R$BACKEND" + 13)
+			SIZE=$(expr length "$1$REPO$BACKEND" + 13)
 			PIPE=$(mktemp -u)
 			mkfifo -m 600 $PIPE
 			exec 4<>"$PIPE"
 			nc localhost 9418 <&4 &
-			printf "%04x%s /%s\0host=%s\0" $SIZE "$1" "$R" "$BACKEND" >&4
+			printf "%04x%s /%s\0host=%s\0" $SIZE "$1" "$REPO" "$BACKEND" >&4
 			cat - >&4
 			rm $PIPE
 		else
-			env GIT_NAMESPACE=$GIT_NAMESPACE git shell -c "$1 '$R'"
+			env GIT_NAMESPACE=$FORK git shell -c "$1 '$REPO'"
 		fi
 	;;
 
 	update-hook)         # branch based access control
-		R=${SSH_ORIGINAL_COMMAND%\'};R=${R#*\'}
+		REPO=${SSH_ORIGINAL_COMMAND%\'};REPO=${REPO#*\'}
 
 		case $2 in
 			refs/tags/*)
@@ -115,14 +115,14 @@ case $1 in
 			;;
 			refs/heads/*)
 				BRANCH="${2#refs/heads/}"
-				acc "(write|write\.$BRANCH)$" "Repo $R Branch '$BRANCH' write denied"
+				acc "(write|write\.$BRANCH)$" "Repo $REPO Branch '$BRANCH' write denied"
 
 				# The branch is new
 				expr $3 : '00*$' >/dev/null || {
 					MO="$(conf branch.$BRANCH.mergeoptions)"
 					if expr $4 : '00*$' >/dev/null; then
 						[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && die "Branch '$BRANCH' deletion denied"
-					elif [ $3 = "$(cd $R>/dev/null; git-merge-base $3 $4)" ]; then
+					elif [ $3 = "$(cd $REPO>/dev/null; git-merge-base $3 $4)" ]; then
 						# Update is fast-forward
 						[ "--no-ff" = "$MO" ] && die 'Fast-forward not allowed'
 					else
@@ -152,22 +152,22 @@ case $1 in
 #-   $ ssh git@host repo test.git fork new_repo.git
 #-   $ ssh git@host repo test.git drop
 
-		test -e "$R" -o "$3" = "init" -o -z "$3" || die "Repository '$R' not found"
+		test -e "$REPO" -o "$3" = "init" -o -z "$3" || die "Repository '$REPO' not found"
 
 		case "$3" in
 			init)
-				is_safe "$R"
-				[ -e "$R" ] && die "Repository exists"
-				git init --bare --shared -q "$R" && \
-				printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > $R/hooks/update && \
-				chmod +x $R/hooks/update
+				is_safe "$REPO"
+				[ -e "$REPO" ] && die "Repository exists"
+				git init --bare --shared -q "$REPO" && \
+				printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > $REPO/hooks/update && \
+				chmod +x $REPO/hooks/update
 			;;
 			fork)
 				is_safe "$4"
 				[ -e "$4" ] && die "Repository exists"
-				GIT_NAMESPACE="$4"
+				FORK="$4"
 				[ "${4%/*}" = "$4" ] || mkdir -p ${4%/*}
-				conf fork.upstream "$R"
+				conf fork.upstream "$REPO"
 			;;
 			c*)
 				conf ${4-'-l'} $5 >&2
@@ -191,12 +191,12 @@ case $1 in
 				#$ git fetch mygroup
 			;;
 			des*)
-				[ "$R" = "$2" ] || die "Forks does not have descriptions"
+				[ "$REPO" = "$2" ] || die "Forks does not have descriptions"
 				shift 3
-				echo "$*" > $R/description
+				echo "$*" > $REPO/description
 			;;
 			def*)
-				git --git-dir "$R" symbolic-ref HEAD refs/heads/$4
+				git --git-dir "$REPO" symbolic-ref HEAD refs/heads/$4
 				;;
 			drop)
 				# Backup repo
@@ -207,12 +207,12 @@ case $1 in
 			;;
 			*)
 				if [ -e "$2" ]; then
-					printf "Repo: $2 - `cat $R/description`\nSize: `du -hs $2|cut -f1`\n\nPermissions:\n"
+					printf "Repo: $2 - $(cat $REPO/description)\nSize: $(du -hs $2|cut -f1)\n\nPermissions:\n"
 					conf --get-regexp '^access\.' | tr ",=" "| " | while read name RE;do
-						echo "$name [$RE] - `get_users|grep -E "\\b($RE)\\b"|cut -d" " -f1|sort|tr "\n" " "`"
+						echo "$name [$RE] - $(get_users|grep -E "\\b($RE)\\b"|cut -d" " -f1|sort|tr "\n" " ")"
 					done
 				else
-					printf "LIST OF REPOSITORIES:\n`get_repos`\n"
+					printf "LIST OF REPOSITORIES:\n$(get_repos)\n"
 				fi >&2
 			;;
 		esac
@@ -246,19 +246,19 @@ case $1 in
 				if [ -n "$2" ]; then
 					RE="$(acc_re $2)"
 					if [ -n "$RE" ]; then
-						printf "User: `get_users $2`\nAccesses to:\n"
+						printf "User: $(get_users $2)\nAccesses to:\n"
 
-						get_repos | while read -r R; do
-							NS=${R%% ->*}
-							[ "$NS" != "$R" ] && GIT_NAMESPACE=$NS || GIT_NAMESPACE=""
+						get_repos | while read -r NAME; do
+							NS=${NAME%% ->*}
+							[ "$NS" != "$NAME" ] && FORK=$NS || FORK=""
 							ACC=$(conf --get-regexp '^access\.' | sed -Ee "/$RE/!d;s,^access\.,,;s, .*$,,")
-							[ "$ACC" ] && echo "$R ["$ACC"]"
+							[ "$ACC" ] && echo "$NAME ["$ACC"]"
 						done
 					else
 						echo "error: User '$2' do not exists"
 					fi
 				else
-					printf "LIST OF USERS:\n`get_users`\n"
+					printf "LIST OF USERS:\n$(get_users)\n"
 				fi >&2
 			;;
 		esac
