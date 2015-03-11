@@ -29,7 +29,11 @@ die() {
 }
 
 conf() {
-	git config --file "${FORK:-$REPO/config}" $@
+	git config --file "${FORK:-$REPO/config}" "$@"
+}
+
+user_conf() {
+	git config --file "$ROOT/users.conf" "$@"
 }
 
 acc() {
