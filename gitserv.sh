@@ -53,12 +53,13 @@ read_repo() {
 	fi
 }
 
+test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
+
 # deny Ctrl-C and unwanted chars
 trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
 
 expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
-test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
 
 
 if [ "${0##*/}" = "gitserv.sh" ]; then
