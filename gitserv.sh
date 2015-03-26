@@ -126,6 +126,10 @@ ask() {
 	done
 }
 
+doc() {
+	sed -n "/^#- \?/s///p" "$1"
+}
+
 valid() {
 	expr "$2" : "$1" >/dev/null
 	test "$?$3" = "0" || die "Name '$2' is not available" "It should match to ^$1"
