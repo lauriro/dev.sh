@@ -13,6 +13,7 @@ export LC_ALL=C
 ROOT=$HOME/repo
 LOGS=$HOME/logs/gitserv.log
 KEYS=$HOME/.ssh/authorized_keys
+TIME=$(date -u +"%FT%T.%3NZ")
 
 CMD=${SSH_ORIGINAL_COMMAND-"$*"}
 
@@ -49,7 +50,7 @@ read_repo() {
 	# append .git when needed
 	REPO=${REPO%.git}.git
 
-	# When repo is a file then it is a fork
+	# When repo is a file then it is a fork or in other backend
 	if [ -f "$REPO" ]; then
 		FORK=$REPO
 		REPO=$(conf fork.upstream)
@@ -71,7 +72,6 @@ if [ "${0##*/}" = "gitserv.sh" ]; then
 
 	read_repo "$2"
 
-
 	case $1 in
 	git-*)   # git pull and push
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
@@ -89,8 +89,8 @@ if [ "${0##*/}" = "gitserv.sh" ]; then
 
 			# Assigns the original repository to a remote called "upstream"
 			if [ -n $FORK ]; then
-				printf "%s is a fork, you may want to add an upstream:" "$FORK" >&2
-				printf "   git remote add upstream %s" "$REPO" >&2
+				printf "%s is a fork, you may want to add an upstream:\n" "$FORK" >&2
+				printf "   git remote add upstream %s\n" "$REPO" >&2
 			fi
 
 			# remote: This repository moved. Please use the new location:
@@ -98,7 +98,8 @@ if [ "${0##*/}" = "gitserv.sh" ]; then
 		fi
 		;;
 	?*)
-		exec git shell -c "$@" ;;
+		exec git shell -c "$*"
+		;;
 	*)
 		exec git shell ;;
 	esac
