@@ -1,0 +1,92 @@
+#!/bin/sh
+
+user_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
+LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
+
+. ./gitserv.sh
+
+user_exists() {
+	valid "$user_RE" "$1"
+	test -n "$(user_conf "user.$1.created")"
+}
+
+create() {
+	test -n "$(user_conf "$1.created")" && die "Name '${1#*.}' is not available for a ${1%%.*}"
+	user_conf "$1.created" "$TIME"
+	user_conf "$1.createdBy" "$USER"
+	printf "Created a new %s '%s'\n" "${1%%.*}" "${1#*.}"
+}
+
+
+case $1 in
+create)
+	valid "$user_RE" "$2"
+	create "user.$2"
+	;;
+del*)
+	user_exists "$2" || die "User '$2' does not exists"
+	if ask "Delete user '$2'?" "N/y"; then
+		user_conf "user.$2.deletedBy" "$USER"
+		user_conf --rename-section "user.$2" "deleted.$TIME.$2" >/dev/null 2>&1 || true
+		sed -ie "/ USER=$2 /d" $KEYS
+		printf "User '%s' deleted\n" "$2"
+	fi
+	;;
+addkey)
+	user_exists "$2" || die "User '$2' does not exists"
+	printf "Input the key: "
+	read KEY
+	TMP=$(mktemp -u)
+	printf %s "$KEY" > $TMP
+	ssh-keygen -lf $TMP > $TMP.fp || die "Invalid key"
+
+	FP=$(cat $TMP.fp | awk -F'[ ()]' '{print $2}')
+	rm $TMP $TMP.fp
+
+	create "key.$FP"
+	user_conf "key.$FP.owner" "$2"
+
+	printf "$LINE" "$2" "$SELF" "$KEY" >> $KEYS
+	;;
+conf)
+	user_exists "$2" || die "User '$2' does not exists"
+	user_conf ${3:+"--replace-all"} "user.$1.$2" ${3:+"$3"}
+	;;
+info)
+	user_exists "$2" || die "User '$2' does not exists"
+	user_conf --get-regexp "^user\.${2}\."
+	;;
+find)
+	printf "LIST OF USERS:${2:+" (filter: ${2:-*})"}\n"
+	user_conf --get-regexp "^user\..*${2}.*\.created$" | \
+	column
+	;;
+*)
+	doc user;;
+esac
+
+#cat conf
+
+#-
+#- EXAMPLES
+#-        ·   Create new user
+#-
+#-                git> user john add
+#-
+#-            User name should not start with a number.
+#-
+#-        ·   Delete a user
+#-
+#-                git> user john delete
+#-
+#-            Also deletes repos under user namespace.
+#-
+#   $ ssh git@host user
+#   $ ssh git@host user richard
+#   $ ssh git@host user richard add
+#   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' richard@example.com
+#   $ ssh git@host user richard group all,admin
+#   $ ssh git@host user richard del
+#
+
+
