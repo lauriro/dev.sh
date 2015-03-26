@@ -24,7 +24,7 @@ log() {
 
 die() {
 	log "$1" error
-	printf "error: %s\n" "$1${2+"\n"}$2" >&2
+	printf "error: %s${2+"\\nerror: "}%s\n" "$1" "$2" >&2
 	exit 2
 }
 
