@@ -1,0 +1,35 @@
+#!/bin/sh
+#-
+#- Available commands are:
+#-    help [command]
+#-    user [create|delete|conf|addkey|info] <username>
+#-    repo <project.git> [init|info|rename|conf|drop]
+
+. ./gitserv.sh
+
+printf "\n*** Hello '%s' ***\n\n" "${USER}"
+
+if tty -s; then
+	printf "Run 'help' for help, or 'exit' to leave.\n"
+else
+	printf "Run 'help' for help.\n"
+fi
+
+cd ${0%/*}
+
+if [ -n "$1" -a -f "$1" -a -x "$1" ]; then
+	sed -n "/^#- \?/s///p" "$1"
+else
+	doc help
+
+	for cmd in *; do
+		case "$cmd" in
+		help|repo|user) ;;
+		*) [ -f "$cmd" ] && [ -x "$cmd" ] && echo "   $cmd" ;;
+		esac
+	done
+fi
+
+
+printf "\nSee 'help <command>' to read about a specific command.\n\n"
+
