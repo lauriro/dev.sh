@@ -1,0 +1,178 @@
+#!/bin/sh
+#-   repo
+#-   repo test.git init
+#-   repo test.git config access.read all
+#-   repo test.git config access.write admin,richard
+#-   repo test.git config access.write.devel all
+#-   repo test.git config access.tag richard
+#-   repo test.git config branch.master.denyDeletes true
+#-   repo test.git config branch.master.mergeoptions "--ff-only"
+#-   repo test.git config branch.devel.mergeoptions "--no-ff"
+#-   repo test.git config tags.denyOverwrite true
+#-   repo test.git describe "My cool repo"
+#-   repo test.git fork new_repo.git
+#-   repo test.git drop
+
+# $ expr ",all,auu," : ".*,\(all\|au\)," || echo DENY
+# all
+
+repo_RE='[-a-z0-9_.]\{0,30\}.git$'
+
+. ./gitserv.sh
+
+
+valid_branch_name() {
+	MSG="we do not like '$1' as a branch name"
+	expr "$1" : '[-a-zA-Z0-9_ +./,'\''@=]*$' >/dev/null || die "$MSG"
+	git check-ref-format "refs/heads/$1" || die "$MSG"
+	#return $?
+}
+
+{ cd "$ROOT" || mkdir -p "$ROOT" && cd "$ROOT"; } >/dev/null 2>&1
+
+
+repo_exists() {
+	valid "$repo_RE" "$1"
+	test -n "$(conf "repo.created")"
+}
+
+repo_not_exists() {
+	valid "$repo_RE" $1
+	test -z "$(conf "repo.$1.read")"
+	test "$?$2" = "0" && die "Repo '$1' exists"
+}
+
+acc() {
+	user_conf --get-regexp "^access\.$1" | \
+	grep -Eq "$(acc_re $USER)" || die "${2-"Repository not found"}"
+}
+
+acc_re() {
+	get_users $1 | tr ", " "|" | tr -d "[]"
+}
+
+get_users() {
+	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEYS
+}
+
+
+read_repo "$2"
+
+case $1 in
+find)
+	printf "LIST OF REPOSITORIES:${2:+" (filter: ${2:-*})"}\n"
+	{
+		grep -Ilr --include=config '^\s*bare = true' *
+		grep -Ir --include=*.git '^\s*upstream = .*' *
+	} 2>/dev/null | sed -e 's,/config$,,;s/:.*= /->/' | column "/${2:-.}/!d"
+	;;
+init)
+	#test "${1##*.}" = "git" || ask "Append .git?" && {
+	#	die "Repo should end with .git"
+	#}
+	valid "$repo_RE" "$REPO"
+	[ -e "$REPO" ] && die "Repository exists"
+	git init --bare --shared -q "$REPO"
+
+	conf repo.owner "$USER"
+	conf repo.created "$TIME"
+	conf repo.createdBy "$USER"
+	conf transfer.hiderefs refs/namespaces
+
+	printf "Repo %s created\n" "$REPO"
+
+	#printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > $REPO/hooks/update && \
+	#chmod +x $REPO/hooks/update
+	;;
+fork)
+	valid "$repo_RE" "$2" || die "Bad name for repo"
+	[ -e "$3" ] && die "Repository exists"
+	FORK="$3"
+	[ "${3%/*}" = "$3" ] || mkdir -p ${3%/*}
+	conf fork.upstream "$REPO"
+	printf "Fork %s created\n" "$3"
+	;;
+conf)
+	# set default branch
+	#git symbolic-ref HEAD refs/heads/master
+	# make `git pull` on master always use rebase
+	#$ git config branch.master.rebase true
+	#You can also set up a global option 
+	# to set the last property for every new tracked branch:
+
+	# setup rebase for every tracking branch
+	#$ git config --global branch.autosetuprebase always
+
+
+	#Fetch a group of remotes
+	#$ git config remotes.default 'origin mislav staging'
+	#$ git remote update
+	# fetches remotes "origin", "mislav", and "staging"
+	# You can also define a named group like so:
+	#$ git config remotes.mygroup 'remote1 remote2 ...'
+	#$ git fetch mygroup
+	#conf "${4-'-l'}" "$5"
+	conf "repo.$1.$3" "$4"
+	;;
+rename)
+	repo_exists "$1" && repo_not_exists "$3"
+	conf --rename-section "repo.$1" "repo.$3"
+	printf "Repo %s renamed to %s\n" "$1" "$3"
+	;;
+drop)
+	# Warning: These steps will permanently delete the repository, wiki, issues, and comments.
+	# This action cannot be undone.
+	# Please also keep in mind that:
+	# - Deleting a private repository will delete all of its forks.
+
+	if ask "Delete repo '$1'?" "N/y"; then
+		tar -czf "$2.$TIME.tar.gz" $2
+		rm -rf $2
+		if [ "$REPO" != "$2" ]; then
+			rm -rf "$REPO/refs/namespaces/$2"
+		fi
+	fi
+	;;
+def*)
+	env GIT_NAMESPACE=$FORK git --git-dir "$REPO" symbolic-ref HEAD refs/heads/$4
+	;;
+info)
+	repo_exists "$REPO" || die "Repo not found"
+	ACC_R=$(conf repo\.${1}\.read | sed 's/|/\|/')
+	ACC_W=$(conf repo\.${1}\.write)
+	printf "Repo:  %s\n" "$1 [R:$ACC_R W:$ACC_W]"
+	printf "Owner: %s\n" "$(conf repo\.${1}\.owner)"
+	printf "Size:  %s\n" "$(test -e "$1" && du -hs $1|cut -f1 || echo "- not local -")"
+	printf "\nLIST OF USERS WITH ACCESS:   (* = write)\n"
+	{
+		test -n "$ACC_W" && conf --get-regexp "^user\..*\.group" "$ACC_W" |\
+		sed -e 's/^user.//' -e 's/.group .*/*/'
+		test -n "$ACC_R" && conf --get-regexp "^user\..*\.group" "$ACC_R" |\
+		sed -e 's/^user.//' -e 's/.group .*//'
+	} | sort -du | column
+	# - $(cat $REPO/description)\nSize: $(du -hs $2|cut -f1)\n\nPermissions:\n"
+	#conf --get-regexp '^access\.' | tr ",=" "| " | while read name RE;do
+	#	echo "$name [$RE] - $(get_users|grep -E "\\b($RE)\\b"|cut -d" " -f1|sort|tr "\n" " ")"
+	#done
+	;;
+*)
+	doc repo;;
+esac
+
+exit 0
+	#TODO
+	if [ -n "$5" ]; then
+		RE="$(acc_re $2)"
+		if [ -n "$RE" ]; then
+			printf "User: $(get_users $2)\nAccesses to:\n"
+
+			get_repos | while read -r NAME; do
+				NS=${NAME%% ->*}
+				[ "$NS" != "$NAME" ] && FORK=$NS || FORK=""
+				ACC=$(conf --get-regexp '^access\.' | sed -Ee "/$RE/!d;s,^access\.,,;s, .*$,,")
+				[ "$ACC" ] && echo "$NAME ["$ACC"]"
+			done
+		else
+			echo "error: User '$2' do not exists"
+		fi
+	else
