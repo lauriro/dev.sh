@@ -81,8 +81,7 @@ init)
 
 	printf "Repo %s created\n" "$REPO"
 
-	#printf '#!/bin/sh\n%s update-hook $@\n' "$SELF" > $REPO/hooks/update && \
-	#chmod +x $REPO/hooks/update
+	ln -st $REPO/hooks $HOME/hooks/update $REPO/hooks/post-receive $REPO/hooks/pre-receive
 	;;
 fork)
 	valid "$repo_RE" "$2" || die "Bad name for repo"
