@@ -15,7 +15,6 @@ else
 	printf "Run 'help' for help.\n"
 fi
 
-cd ${0%/*}
 
 if [ -n "$1" -a -f "$1" -a -x "$1" ]; then
 	sed -n "/^#- \?/s///p" "$1"

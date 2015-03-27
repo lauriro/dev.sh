@@ -17,7 +17,6 @@ TIME=$(date -u +"%FT%T.%3NZ")
 
 CMD=${SSH_ORIGINAL_COMMAND-"$*"}
 
-
 log() {
 	printf "%s %s %s: %s -- %s\n" \
 		"$(date -u +"%F %T")" "${SSH_CLIENT%% *}" "$USER" "$1" "$CMD" >> $LOGS
@@ -30,11 +29,11 @@ die() {
 }
 
 conf() {
-	git config --file "${FORK:-$REPO/config}" "$@"
+	git config --file "${FORK:-$REPO/config}" $@
 }
 
 user_conf() {
-	git config --file "$ROOT/users.conf" "$@"
+	git config --file "users.conf" "$@"
 }
 
 inc() {
@@ -44,8 +43,10 @@ inc() {
 }
 
 acc() {
-	expr ",all,$USER,$GROUP," : ".*,\($(conf --get-regexp "^access\.$1")\)," >/dev/null \
-		|| die "${2-"Repository not found"}"
+	re=$(conf "access.$1")
+	re=$re${re:+"\|"}$(conf "repo.owner")
+	expr ",all,$USER,$GROUP," : ".*,\($re\)," >/dev/null
+	test "$?$3" = "0" || die "${2-"Repository not found"}"
 }
 
 read_repo() {
@@ -71,7 +72,7 @@ trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
 
 expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
-
+cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
 
 if [ "${0##*/}" = "gitserv.sh" ]; then
 	set -- $CMD
@@ -94,7 +95,7 @@ if [ "${0##*/}" = "gitserv.sh" ]; then
 			env GIT_NAMESPACE=$FORK git shell -c "$1 '$REPO'"
 
 			# Assigns the original repository to a remote called "upstream"
-			if [ -n $FORK ]; then
+			if [ -n "$FORK" ]; then
 				printf "%s is a fork, you may want to add an upstream:\n" "$FORK" >&2
 				printf "   git remote add upstream %s\n" "$REPO" >&2
 			fi
@@ -115,8 +116,6 @@ if [ "${0##*/}" = "gitserv.sh" ]; then
 fi
 
 
-SELF="$(cd "${0%/*}";pwd)/${0##*/}"
-
 column() {
 	sort | \
 	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/^[a-z]*\.\|\.created .*//g"} | \
@@ -136,7 +135,7 @@ ask() {
 }
 
 doc() {
-	sed -n "/^#- \?/s///p" "$1"
+	sed -n "/^#- \?/s///p" "$HOME/git-shell-commands/$1"
 }
 
 valid() {

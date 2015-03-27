@@ -1,6 +1,8 @@
 Gitserv
 =======
 
+* It is currently not usable due to rewrite
+
 Host a git server with git-shell
 
 
