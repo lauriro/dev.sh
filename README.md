@@ -1,7 +1,7 @@
 Gitserv
 =======
 
-Tool for hosting git repositories.
+Host a git server with git-shell
 
 
 ```
@@ -100,6 +100,7 @@ Usage
 
 ### Licence
 
-Copyright (c) 2012 Lauri Rooden <lauri@rooden.ee>  
+Copyright (c) 2011-2015 Lauri Rooden <lauri@rooden.ee>  
 [The MIT License](http://lauri.rooden.ee/mit-license.txt)
+
 
