@@ -37,6 +37,12 @@ user_conf() {
 	git config --file "$ROOT/users.conf" "$@"
 }
 
+inc() {
+	i=$(expr $(user_conf seq.$1) + 1)
+	user_conf "seq.$1" $i
+	printf "$i"
+}
+
 acc() {
 	expr ",all,$USER,$GROUP," : ".*,\($(conf --get-regexp "^access\.$1")\)," >/dev/null \
 		|| die "${2-"Repository not found"}"
