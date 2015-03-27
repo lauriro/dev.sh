@@ -72,7 +72,7 @@ init)
 	#}
 	valid "$repo_RE" "$REPO"
 	[ -e "$REPO" ] && die "Repository exists"
-	git init --bare --shared -q "$REPO"
+	git init --template=templates --bare --shared -q "$REPO"
 
 	conf repo.owner "$USER"
 	conf repo.created "$TIME"
