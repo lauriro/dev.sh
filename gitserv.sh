@@ -110,7 +110,10 @@ fi
 
 
 SELF="$(cd "${0%/*}";pwd)/${0##*/}"
+
 column() {
+	sort | \
+	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/^[a-z]*\.\|\.created .*//g"} | \
 	git column --mode=auto --padding=2 --indent="   "
 }
 
