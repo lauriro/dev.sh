@@ -36,12 +36,6 @@ user_conf() {
 	git config --file "users.conf" "$@"
 }
 
-inc() {
-	i=$(expr $(user_conf seq.$1) + 1)
-	user_conf "seq.$1" $i
-	printf "$i"
-}
-
 acc() {
 	re=$(conf "access.$1")
 	re=$re${re:+"\|"}$(conf "repo.owner")
@@ -70,7 +64,7 @@ test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
 # deny Ctrl-C and unwanted chars
 trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
 
-expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|]*$' >/dev/null || die "DON'T BE NAUGHTY"
+expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
 cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
 
@@ -118,7 +112,7 @@ fi
 
 column() {
 	sort | \
-	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/^[a-z]*\.\|\.created .*//g"} | \
+	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/\.created .*//g"} | \
 	git column --mode=auto --padding=2 --indent="   "
 }
 

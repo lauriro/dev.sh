@@ -3,7 +3,7 @@
 #- Available commands are:
 #-    help [command]
 #-    user [create|delete|conf|addkey|info] <username>
-#-    repo <project.git> [init|info|rename|conf|drop]
+#-    repo [init|info|rename|conf|drop] <project.git>
 
 . ./gitserv.sh
 

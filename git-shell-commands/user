@@ -1,92 +1,83 @@
 #!/bin/sh
+#-
+#- EXAMPLES
+#-
+#-    git> user add john
+#-    git> user conf john group admin
+#-    git> user conf john name "John Smith"
+#-    git> user addkey john
+#-    git> user rmkey john fingerprint
+#-    git> user find
+#-    git> user find john
+#-    git> user info john
+#-    git> user del john
+#-
 
-user_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
+
+USER_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
 LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
 
 . ./gitserv.sh
 
 user_exists() {
-	valid "$user_RE" "$1"
-	test -n "$(user_conf "user.$1.created")"
+	expr "$1" : "$USER_RE" >/dev/null 2>&1
+	test "$?" = "0" || die "Name '$1' is not available" "It should match to ^$USER_RE"
+	test -n "$(user_conf "$1.created")"
+	test "$?" = "${2:-0}" || die "${3:-"User '$1' does not exists"}"
 }
-
-create() {
-	test -n "$(user_conf "$1.created")" && die "Name '${1#*.}' is not available for a ${1%%.*}"
-	user_conf "$1.created" "$TIME"
-	user_conf "$1.createdBy" "$USER"
-	printf "Created a new %s '%s'\n" "${1%%.*}" "${1#*.}"
-}
-
 
 case $1 in
-create)
-	valid "$user_RE" "$2"
-	create "user.$2"
+add)
+	user_exists "$2" 1 "Name '$2' is not available"
+	user_conf "$2.created" "$TIME"
+	printf "User '%s' added\n" "$2"
 	;;
-del*)
-	user_exists "$2" || die "User '$2' does not exists"
+del)
+	user_exists "$2"
 	if ask "Delete user '$2'?" "N/y"; then
-		user_conf "user.$2.deletedBy" "$USER"
-		user_conf --rename-section "user.$2" "deleted.$TIME.$2" >/dev/null 2>&1 || true
+		user_conf --get-regexp "^$2\." >> "$TIME.$2.conf"
+		user_conf --remove-section "$2"
 		sed -ie "/ USER=$2 /d" $KEYS
 		printf "User '%s' deleted\n" "$2"
 	fi
 	;;
 addkey)
-	user_exists "$2" || die "User '$2' does not exists"
-	printf "Input the key: "
+	user_exists "$2"
+	printf "Input the key (ssh-rsa AAAAB3Nza...): "
 	read KEY
 	TMP=$(mktemp -u)
 	printf %s "$KEY" > $TMP
-	ssh-keygen -lf $TMP > $TMP.fp || die "Invalid key"
-
-	FP=$(cat $TMP.fp | awk -F'[ ()]' '{print $2}')
+	ssh-keygen -lf $TMP > $TMP.fp 2>/dev/null || die "Invalid key"
+	read len FP note <$TMP.fp
 	rm $TMP $TMP.fp
 
-	create "key.$FP"
-	user_conf "key.$FP.owner" "$2"
+	test -n "$(user_conf "key.$FP.created")" && die "Key exists"
 
-	printf "$LINE" "$2" "$SELF" "$KEY" >> $KEYS
+	user_conf "key.$FP.created" "$TIME"
+	user_conf "key.$FP.owner" "$2"
+	user_conf "key.$FP.note" "$note"
+
+	printf "$LINE" "$2" "$HOME/gitserv.sh" "$KEY" >> $KEYS
+	printf "Key '%s' added to '%s'\n" "$FP" "$2"
+	;;
+rmkey)
+	test -n "$(user_conf "key.$2.created")" || die "Key not exists"
+	user_conf --remove-section "key.$2"
 	;;
 conf)
-	user_exists "$2" || die "User '$2' does not exists"
-	user_conf ${3:+"--replace-all"} "user.$1.$2" ${3:+"$3"}
+	user_exists "$2"
+	user_conf ${3:+"--replace-all"} "$1.$2" ${3:+"$3"}
 	;;
 info)
-	user_exists "$2" || die "User '$2' does not exists"
-	user_conf --get-regexp "^user\.${2}\."
+	user_exists "$2"
+	user_conf --get-regexp "^$2\."
 	;;
 find)
 	printf "LIST OF USERS:${2:+" (filter: ${2:-*})"}\n"
-	user_conf --get-regexp "^user\..*${2}.*\.created$" | \
-	column
+	user_conf --get-regexp "$2.*\.created$" | column
 	;;
 *)
 	doc user;;
 esac
-
-#cat conf
-
-#-
-#- EXAMPLES
-#-        ·   Create new user
-#-
-#-                git> user john add
-#-
-#-            User name should not start with a number.
-#-
-#-        ·   Delete a user
-#-
-#-                git> user john delete
-#-
-#-            Also deletes repos under user namespace.
-#-
-#   $ ssh git@host user
-#   $ ssh git@host user richard
-#   $ ssh git@host user richard add
-#   $ ssh git@host user richard key 'sh-rsa AAAAB3N...50i8Q==' richard@example.com
-#   $ ssh git@host user richard group all,admin
-#   $ ssh git@host user richard del
-#
 
 
