@@ -17,7 +17,7 @@
 USER_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
 LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
 
-. ./gitserv.sh
+. ./gitserv
 
 user_exists() {
 	expr "$1" : "$USER_RE" >/dev/null 2>&1
@@ -57,7 +57,7 @@ addkey)
 	user_conf "key.$FP.owner" "$2"
 	user_conf "key.$FP.note" "$note"
 
-	printf "$LINE" "$2" "$HOME/gitserv.sh" "$KEY" >> $KEYS
+	printf "$LINE" "$2" "$HOME/gitserv" "$KEY" >> $KEYS
 	printf "Key '%s' added to '%s'\n" "$FP" "$2"
 	;;
 rmkey)

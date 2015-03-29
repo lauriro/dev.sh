@@ -20,7 +20,7 @@
 
 REPO_RE='[-a-z0-9_.]\{0,30\}.git$'
 
-. ./gitserv.sh
+. ./gitserv
 
 
 repo_exists() {

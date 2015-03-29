@@ -68,7 +68,7 @@ expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHT
 
 cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
 
-if [ "${0##*/}" = "gitserv.sh" ]; then
+if [ "${0##*/}" = "gitserv" ]; then
 	set -- $CMD
 
 	read_repo "$2"

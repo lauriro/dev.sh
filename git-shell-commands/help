@@ -5,7 +5,7 @@
 #-    user [create|delete|conf|addkey|info] <username>
 #-    repo [init|info|rename|conf|drop] <project.git>
 
-. ./gitserv.sh
+. ./gitserv
 
 printf "\n*** Hello '%s' ***\n\n" "${USER}"
 

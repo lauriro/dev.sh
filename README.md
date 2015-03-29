@@ -30,7 +30,7 @@ git log --pretty=oneline @{u}..HEAD
 
 $ git ls-tree -r --name-only HEAD | while read filename; do   echo "$filename $(git log -1 --format="%h:%s:%ar" -- $filename)"; done
 README.md 65162b1:Update Readme:1 year, 5 months ago
-gitserv.sh 53317c7:Cleanup:7 months ago
+gitserv 53317c7:Cleanup:7 months ago
 
 
 ```
@@ -54,13 +54,9 @@ chsh -s /bin/dash git
     touch ~/.ssh/authorized_keys
     chmod 0600 ~/.ssh/authorized_keys
     # Get sshd wrapper
-    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv/master/gitserv.sh
-    chmod +x gitserv.sh
+    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv/master/gitserv
+    chmod +x gitserv
 
-    # Make initial config
-    ./gitserv.sh user richard add
-    ./gitserv.sh user richard key 'ssh-rsa AAAAB3NzaC1yc2E...50i8Q== richard@example.com'
-    ./gitserv.sh user richard group 'all,admin'
 
 Conf
 ----
