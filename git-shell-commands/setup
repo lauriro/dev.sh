@@ -23,7 +23,7 @@ print)
 	cat $ROOT/users.conf
 	;;
 update)
-	git update
+	git pull
 	;;
 reset)
 	printf "" > $FILE
