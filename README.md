@@ -3,7 +3,55 @@ Gitserv
 
 * It is currently not usable due to rewrite
 
-Host a git server with git-shell
+Hosting a git server with git-shell
+
+
+```sh
+# Create a user
+useradd --create-home --skel /dev/null --shell /bin/dash git
+# Clone gitserv to newly created user home directory
+su git
+git clone https://github.com/lauriro/gitserv.git $HOME
+# Setup .ssh dir and permissions
+./git-shell-commands/setup
+# Add first git user
+./git-shell-commands/user add john
+./git-shell-commands/user addkey john
+```
+
+Now you can continue with ssh and newly created user
+
+```sh
+ssh git@gitserv.host
+```
+
+In most cases this should be sufficient.
+
+Advanced Configuration
+----------------------
+
+`/etc/gitserv.conf` file can be used.
+
+Defaults
+
+```sh
+ROOT=$HOME/repo
+USER_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
+REPO_RE='[-a-z0-9_.]\{0,30\}.git$'
+LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
+LOGS=$HOME/logs/gitserv.log
+```
+
+It is possible to override logger by adding to conf file
+
+```sh
+log() {
+	logger -t gitserv -p ${2-"info"} "${SSH_CLIENT%% *} $USER: $1 -- $CMD"
+}
+```
+
+
+### Notes
 
 
 ```
@@ -35,38 +83,6 @@ gitserv 53317c7:Cleanup:7 months ago
 
 ```
 
-
-
-Install
--------
-
-```sh
-# Create a user `git`
-useradd -m git
-# Set better shell
-chsh -s /bin/dash git
-
-    su git
-    # Prepare `git` ssh config
-    cd ~
-    mkdir ~/.ssh
-    chmod 0700 ~/.ssh
-    touch ~/.ssh/authorized_keys
-    chmod 0600 ~/.ssh/authorized_keys
-    # Get sshd wrapper
-    wget -O gitserv.sh https://raw.github.com/lauriro/gitserv/master/gitserv
-    chmod +x gitserv
-
-
-Conf
-----
-
-```
-# Override logger
-log() {
-	logger -t gitserv -p ${2-"info"} "${SSH_CLIENT%% *} $USER: $1 -- $SSH_ORIGINAL_COMMAND"
-}
-```
 
 
 Usage
