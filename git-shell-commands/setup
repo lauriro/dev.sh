@@ -1,0 +1,34 @@
+#!/bin/sh
+
+. ./gitserv
+
+# Prepare .ssh folder and files
+mkdir -p $HOME/.ssh
+chmod 700 $HOME/.ssh
+touch $HOME/.ssh/authorized_keys
+chmod 600 $HOME/.ssh/authorized_keys
+
+mkdir -p "$ROOT"
+
+test -w "$KEYS" || die "File '$KEYS' is not writable"
+
+# sudo chsh -s /usr/bin/git-shell gituser
+
+case $1 in
+print)
+	printf "PWD: %s\n" "$PWD"
+	printf "ROOT: %s\n" "$ROOT"
+	printf "LOGS: %s\n" "$LOGS"
+	printf "KEYS: %s\n" "$KEYS"
+	cat $ROOT/users.conf
+	;;
+update)
+	git update
+	;;
+reset)
+	printf "" > $FILE
+	;;
+esac
+
+
+
