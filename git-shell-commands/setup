@@ -26,7 +26,7 @@ print)
 	printf "ROOT: %s\n" "$ROOT"
 	printf "LOGS: %s\n" "$LOGS"
 	printf "KEYS: %s\n" "$KEYS"
-	cat $ROOT/users.conf
+	cat users.conf
 	;;
 update)
 	printf "Old version: %s\n" "$(ver)"
