@@ -14,6 +14,12 @@ test -w "$KEYS" || die "File '$KEYS' is not writable"
 
 # sudo chsh -s /usr/bin/git-shell gituser
 
+ver() {
+	git describe --long --dirty 2>/dev/null > VERSION || \
+		echo "Initial version-g$(git rev-parse --short HEAD)"
+}
+
+
 case $1 in
 print)
 	printf "PWD: %s\n" "$PWD"
@@ -23,7 +29,10 @@ print)
 	cat $ROOT/users.conf
 	;;
 update)
+	printf "Old version: %s\n" "$(ver)"
 	git pull
+	test -n "$3" && git reset --hard "$3"
+	printf "New version: %s\n" "$(ver)"
 	;;
 reset)
 	printf "" > $FILE
