@@ -22,6 +22,7 @@ REPO_RE='[-a-z0-9_.]\{0,30\}.git$'
 
 . ./gitserv
 
+is_admin
 
 repo_exists() {
 	expr "$1" : "$REPO_RE" >/dev/null 2>&1

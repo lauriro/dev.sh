@@ -110,6 +110,11 @@ if [ "${0##*/}" = "gitserv" ]; then
 fi
 
 
+is_admin() {
+	test -z "$SSH_CLIENT" || expr ",$USER,$GROUP," : ".*,admin," >/dev/null
+	test "$?" = "${2:-0}" || die "${3:-"Admin access denied"}"
+}
+
 column() {
 	sort | \
 	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/\.created .*//g"} | \

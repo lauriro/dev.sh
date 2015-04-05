@@ -19,6 +19,8 @@ LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-for
 
 . ./gitserv
 
+is_admin
+
 user_exists() {
 	expr "$1" : "$USER_RE" >/dev/null 2>&1
 	test "$?" = "0" || die "Name '$1' is not available" "It should match to ^$USER_RE"

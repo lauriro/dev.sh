@@ -2,6 +2,8 @@
 
 . ./gitserv
 
+is_admin
+
 # Prepare .ssh folder and files
 mkdir -p $HOME/.ssh
 chmod 700 $HOME/.ssh
