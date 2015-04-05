@@ -57,7 +57,7 @@ addkey)
 
 	user_conf "key.$FP.created" "$TIME"
 	user_conf "key.$FP.owner" "$2"
-	user_conf "key.$FP.note" "$note"
+	user_conf "key.$FP.note" "${note#/tmp/* }"
 
 	printf "$LINE" "$2" "$HOME/gitserv" "$KEY" >> $KEYS
 	printf "Key '%s' added to '%s'\n" "$FP" "$2"
