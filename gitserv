@@ -40,7 +40,7 @@ acc() {
 	re=$(conf "access.$1")
 	re=$re${re:+"\|"}$(conf "repo.owner")
 	expr ",all,$USER,$GROUP," : ".*,\($re\)," >/dev/null
-	test "$?$3" = "0" || die "${2-"Repository not found"}"
+	test "$?" = "${2:-0}" || die "${3:-"Repo '$1' does not exists"}"
 }
 
 read_repo() {
@@ -66,9 +66,9 @@ trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
 
 expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
-cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
-
 if [ "${0##*/}" = "gitserv" ]; then
+	cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
+
 	set -- $CMD
 
 	read_repo "$2"
