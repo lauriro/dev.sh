@@ -24,21 +24,21 @@ is_admin
 user_exists() {
 	expr "$1" : "$USER_RE" >/dev/null 2>&1
 	test "$?" = "0" || die "Name '$1' is not available" "It should match to ^$USER_RE"
-	test -n "$(user_conf "$1.created")"
+	test -n "$(user_conf "user.$1.created")"
 	test "$?" = "${2:-0}" || die "${3:-"User '$1' does not exists"}"
 }
 
 case $1 in
 add)
 	user_exists "$2" 1 "Name '$2' is not available"
-	user_conf "$2.created" "$TIME"
+	user_conf "user.$2.created" "$TIME"
 	printf "User '%s' added\n" "$2"
 	;;
 del)
 	user_exists "$2"
 	if ask "Delete user '$2'?" "N/y"; then
-		user_conf --get-regexp "^$2\." >> "$TIME.$2.conf"
-		user_conf --remove-section "$2"
+		user_conf --get-regexp "^user\.$2\." >> "$TIME.$2.conf"
+		user_conf --remove-section "user.$2"
 		sed -ie "/ USER=$2 /d" $KEYS
 		printf "User '%s' deleted\n" "$2"
 	fi
@@ -68,15 +68,19 @@ rmkey)
 	;;
 conf)
 	user_exists "$2"
-	user_conf ${3:+"--replace-all"} "$1.$2" ${3:+"$3"}
+	user_conf ${4:+"--replace-all"} "user.$2.$3" ${4:+"$4"}
+	;;
+group)
+	user_exists "$2"
+	user_conf ${4:+"--replace-all"} "user.$2.$3" ${4:+"$4"}
 	;;
 info)
 	user_exists "$2"
-	user_conf --get-regexp "^$2\."
+	user_conf --get-regexp "^user\.$2\."
 	;;
 find)
 	printf "LIST OF USERS:${2:+" (filter: ${2:-*})"}\n"
-	user_conf --get-regexp "$2.*\.created$" | column
+	user_conf --get-regexp "^user\.$2.*\.created$" | column
 	;;
 *)
 	doc user;;
