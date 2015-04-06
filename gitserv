@@ -117,7 +117,7 @@ is_admin() {
 
 column() {
 	sort | \
-	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/\.created .*//g"} | \
+	sed -e '100,100s/.*/.../' -e '101,$d' -e ${1:-"s/^user\.\|\.created .*//g"} | \
 	git column --mode=auto --padding=2 --indent="   "
 }
 
