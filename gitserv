@@ -122,9 +122,8 @@ column() {
 }
 
 ask() {
-	while true; do
-		printf "${1:-"Are you sure?"} [${2:-"Y/n"}] "
-		read r
+	printf "${1:-"Are you sure?"} [${2:-"Y/n"}] "
+	while read r; do
 		case "$r${2:-"Y/n"}" in
 			y*|Y*) return 0 ;;
 			n*|N*) return 1 ;;
