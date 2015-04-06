@@ -13,10 +13,10 @@ useradd --create-home --skel /dev/null --shell /bin/dash git
 su git
 git clone https://github.com/lauriro/gitserv.git $HOME
 # Setup .ssh dir and permissions
-./git-shell-commands/setup
+./gitserv setup
 # Add first git user
-./git-shell-commands/user add john
-./git-shell-commands/user addkey john
+./gitserv user add john
+./gitserv user addkey john
 ```
 
 Now you can continue with ssh and newly created user

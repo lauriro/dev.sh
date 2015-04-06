@@ -2,8 +2,11 @@
 #-
 #- Available commands are:
 #-    help [command]
-#-    user [create|delete|conf|addkey|info] <username>
+#-    user [add|delete|conf|addkey|info] <username>
 #-    repo [init|info|rename|conf|drop] <project.git>
+#-
+#- See 'help <command>' to read about a specific command.
+#-
 
 . ./gitserv
 
@@ -29,6 +32,4 @@ else
 	done
 fi
 
-
-printf "\nSee 'help <command>' to read about a specific command.\n\n"
 
