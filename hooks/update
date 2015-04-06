@@ -2,16 +2,17 @@
 # The update script is very similar to the pre-receive script, except that it’s run once for each branch the pusher is trying to update. If the pusher is trying to push to multiple branches, pre-receive runs only once, whereas update runs once per branch they’re pushing to. Instead of reading from stdin, this script takes three arguments: the name of the reference (branch), the SHA-1 that reference pointed to before the push, and the SHA-1 the user is trying to push. If the update script exits non-zero, only that reference is rejected; other references can still be updated.
 
 echo "PWD: $PWD"
+echo "'$1' '$2' '$3'"
+. $HOME/gitserv
 
-
-case $2 in
+case "$1" in
 	refs/tags/*)
 		acc '(write|tag)$'
 		[ "true" = "$(conf --bool tags.denyOverwrite)" ] &&
 		git rev-parse --verify -q "$2" && die "You can't overwrite an existing tag"
 	;;
 	refs/heads/*)
-		BRANCH="${2#refs/heads/}"
+		BRANCH="${1#refs/heads/}"
 		acc "(write|write\.$BRANCH)$" "Repo $REPO Branch '$BRANCH' write denied"
 
 		# The branch is new
@@ -19,7 +20,7 @@ case $2 in
 			MO="$(conf branch.$BRANCH.mergeoptions)"
 			if expr $4 : '00*$' >/dev/null; then
 				[ "true" = "$(conf --bool branch.$BRANCH.denyDeletes)" ] && die "Branch '$BRANCH' deletion denied"
-			elif [ $3 = "$(cd $REPO>/dev/null; git-merge-base $3 $4)" ]; then
+			elif [ $3 = "$(git-merge-base $3 $4)" ]; then
 				# Update is fast-forward
 				[ "--no-ff" = "$MO" ] && die 'Fast-forward not allowed'
 			else
@@ -28,6 +29,6 @@ case $2 in
 		}
 	;;
 	*)
-		die "Branch is not under refs/heads or refs/tags. What are you trying to do?"
+		die "Ref is not under refs/heads or refs/tags" "What are you trying to do?"
 	;;
 esac
