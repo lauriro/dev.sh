@@ -4,6 +4,7 @@
 #-
 #-    git> repo init test.git
 #-    git> repo drop test.git
+#-
 #-   repo
 #-   repo test.git init
 #-   repo test.git config access.read all
@@ -38,20 +39,6 @@ valid_branch_name() {
 	#return $?
 }
 
-acc() {
-	user_conf --get-regexp "^access\.$1" | \
-	grep -Eq "$(acc_re $USER)" || die "${2-"Repository not found"}"
-}
-
-acc_re() {
-	get_users $1 | tr ", " "|" | tr -d "[]"
-}
-
-get_users() {
-	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEYS
-}
-
-
 read_repo "$2"
 
 case $1 in
@@ -66,7 +53,7 @@ init)
 
 	printf "Repo %s created\n" "$REPO"
 
-	ln -st $REPO/hooks $HOME/hooks/update $REPO/hooks/post-receive $REPO/hooks/pre-receive
+	ln -st $REPO/hooks $HOME/hooks/update $HOME/hooks/post-receive $HOME/hooks/pre-receive
 	;;
 fork)
 	repo_exists "$REPO"
@@ -153,6 +140,10 @@ find)
 esac
 
 exit 0
+
+
+
+
 	#TODO
 	if [ -n "$5" ]; then
 		RE="$(acc_re $2)"
@@ -169,3 +160,17 @@ exit 0
 			echo "error: User '$2' do not exists"
 		fi
 	else
+acc() {
+	user_conf --get-regexp "^access\.$1" | \
+	grep -Eq "$(acc_re $USER)" || die "${2-"Repository not found"}"
+}
+
+acc_re() {
+	get_users $1 | tr ", " "|" | tr -d "[]"
+}
+
+get_users() {
+	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEYS
+}
+
+
