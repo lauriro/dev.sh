@@ -20,7 +20,7 @@ log() {
 }
 
 die() {
-	printf "error: %s${2+"\\nerror: "}%s\n" "$1" "$2" >&2
+	printf "ERROR: %s%s\n" "$1" "${2+"\\nERROR: "}$2" >&2
 	log "$1" error
 	exit 2
 }
@@ -30,6 +30,7 @@ trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15
 
 test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
 
+TIME=$(date -u +"%F %TZ")
 CMD=${SSH_ORIGINAL_COMMAND-"$*"}
 expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHTY"
 

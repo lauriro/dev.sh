@@ -9,13 +9,13 @@
 #-    git> user rmkey john fingerprint
 #-    git> user find
 #-    git> user find john
-#-    git> user info john
-#-    git> user del john
+#-    git> user show john
+#-    git> user drop john
 #-
 
 
 USER_RE='[a-z][-a-z0-9]\{1,16\}[a-z0-9]$'
-LINE='command="env USER=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
+LINE='command="env USER=%s GROUP=%s %s",no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s\n'
 
 . ./gitserv
 
@@ -32,15 +32,16 @@ case $1 in
 add)
 	user_exists "$2" 1 "Name '$2' is not available"
 	user_conf "user.$2.created" "$TIME"
+	user_conf "user.$2.group" "all"
 	printf "User '%s' added\n" "$2"
 	;;
-del)
+drop)
 	user_exists "$2"
-	if ask "Delete user '$2'?" "N/y"; then
+	if ask "Drop user '$2'?" "N/y"; then
 		user_conf --get-regexp "^user\.$2\." >> "$TIME.$2.conf"
 		user_conf --remove-section "user.$2"
 		sed -ie "/ USER=$2 /d" $KEYS
-		printf "User '%s' deleted\n" "$2"
+		printf "User '%s' dropped\n" "$2"
 	fi
 	;;
 addkey)
@@ -60,7 +61,7 @@ addkey)
 	user_conf "key.$FP.note" "${note#/tmp/* }"
 
 	printf "$LINE" "$2" "$HOME/gitserv" "$KEY" >> $KEYS
-	printf "Key '%s' added to '%s'\n" "$FP" "$2"
+	printf "Key '%s' added for '%s'\n" "$FP" "$2"
 	;;
 rmkey)
 	test -n "$(user_conf "key.$2.created")" || die "Key not exists"
@@ -74,7 +75,7 @@ group)
 	user_exists "$2"
 	user_conf ${4:+"--replace-all"} "user.$2.$3" ${4:+"$4"}
 	;;
-info)
+show)
 	user_exists "$2"
 	user_conf --get-regexp "^user\.$2\."
 	;;
