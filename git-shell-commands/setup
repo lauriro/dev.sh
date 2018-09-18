@@ -4,29 +4,18 @@
 
 is_admin
 
-# Prepare .ssh folder and files
-mkdir -p $HOME/.ssh
-chmod 700 $HOME/.ssh
-touch $HOME/.ssh/authorized_keys
-chmod 600 $HOME/.ssh/authorized_keys
-
-mkdir -p "$ROOT"
-
-test -w "$KEYS" || die "File '$KEYS' is not writable"
-
-# sudo chsh -s /usr/bin/git-shell gituser
-
 ver() {
-	git describe --long --dirty 2>/dev/null > VERSION || \
-		echo "Initial version-g$(git rev-parse --short HEAD)"
+	git describe --long --dirty 2>/dev/null || \
+	echo "g$(git rev-parse --short HEAD)$(git diff --no-ext-diff --quiet --exit-code || echo '-dirty')"
 }
 
 
 case $1 in
 print)
+	printf "Version: %s\n" "$(ver)"
 	printf "PWD: %s\n" "$PWD"
 	printf "ROOT: %s\n" "$ROOT"
-	printf "LOGS: %s\n" "$LOGS"
+	printf "LOG: %s\n" "$LOG"
 	printf "KEYS: %s\n" "$KEYS"
 	cat users.conf
 	;;
@@ -38,6 +27,20 @@ update)
 	;;
 reset)
 	printf "" > $FILE
+	;;
+*)
+	# Prepare .ssh folder and files
+	mkdir -p $(dirname $KEYS)
+	chmod 700 $(dirname $KEYS)
+	touch $KEYS
+	chmod 600 $KEYS
+
+	mkdir -p "$ROOT"
+
+	test -w "$KEYS" || die "File '$KEYS' is not writable"
+
+	# sudo chsh -s /usr/bin/git-shell gituser
+
 	;;
 esac
 

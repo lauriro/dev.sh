@@ -39,7 +39,7 @@ valid_branch_name() {
 	#return $?
 }
 
-read_repo "$2"
+resolve_repo "$2"
 
 case $1 in
 init)

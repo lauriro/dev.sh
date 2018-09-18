@@ -2,7 +2,7 @@
 #
 # Host a git server with git-shell
 #
-#    @version  0.2
+#    @version  18.9.0
 #    @author   Lauri Rooden - https://github.com/lauriro/gitserv
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #
@@ -10,16 +10,13 @@
 
 export LC_ALL=C
 
-ROOT=$HOME/repo
-LOGS=$HOME/logs/gitserv.log
 KEYS=$HOME/.ssh/authorized_keys
-TIME=$(date -u +"%FT%T.%3NZ")
-
-CMD=${SSH_ORIGINAL_COMMAND-"$*"}
+LOG=$HOME/log/gitserv-$(date -u +%F).log
+ROOT=$HOME/repo
 
 log() {
 	printf "%s %s %s: %s -- %s\n" \
-		"$(date -u +"%F %T")" "${SSH_CLIENT%% *}" "$USER" "$1" "$CMD" >> $LOGS
+		"$(date -u +"%F %TZ")" "${SSH_CLIENT%% *}" "$USER" "$1" "$CMD" >> $LOG
 }
 
 die() {
@@ -27,6 +24,14 @@ die() {
 	printf "error: %s${2+"\\nerror: "}%s\n" "$1" "$2" >&2
 	exit 2
 }
+
+# deny Ctrl-C and unwanted chars
+trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
+
+test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
+
+CMD=${SSH_ORIGINAL_COMMAND-"$*"}
+expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHTY"
 
 conf() {
 	git config --file "${FORK:-$REPO/config}" $@
@@ -43,12 +48,12 @@ acc() {
 	test "$?" = "${2:-0}" || die "${3:-"Repo '$1' does not exists"}"
 }
 
-read_repo() {
+resolve_repo() {
 	# unquote repo name
 	REPO=${1%\'}
 	REPO=${REPO#*\'}
 
-	# append .git when needed
+	# Ensure repo ends with `.git`
 	REPO=${REPO%.git}.git
 
 	# When repo is a file then it is a fork or in other backend
@@ -59,19 +64,12 @@ read_repo() {
 	fi
 }
 
-test -r "${CONF=/etc/gitserv.conf}" && . "$CONF"
-
-# deny Ctrl-C and unwanted chars
-trap "die \"trap $LINENO\";kill -9 $$" 1 2 3 6 15 ERR
-
-expr "$CMD " : '[-a-zA-Z0-9_ +./,'\''@=|:]*$' >/dev/null || die "DON'T BE NAUGHTY"
-
 if [ "${0##*/}" = "gitserv" ]; then
 	cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
 
 	set -- $CMD
 
-	read_repo "$2"
+	resolve_repo "$2"
 
 	case $1 in
 	git-*)   # git pull and push

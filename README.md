@@ -1,13 +1,26 @@
+https://github.com/bkuhlmann/git-cop
+https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
+https://github.com/agis/git-style-guide
+
+https://github.com/agis/git-style-guide
+
+Fix
+Add
+Update
+Remove
+Refactor
+Replace
+
 Gitserv
 =======
 
-* It is currently not usable due to rewrite
-
 Hosting a git server with git-shell
 
+Install
+-------
 
 ```sh
-# Create a user
+# Create a user as root or with sudo
 useradd --create-home --skel /dev/null --shell /bin/dash git
 # Clone gitserv to newly created user home directory
 su git
