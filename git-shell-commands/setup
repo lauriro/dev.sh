@@ -13,10 +13,10 @@ ver() {
 case $1 in
 print)
 	printf "Version: %s\n" "$(ver)"
-	printf "PWD: %s\n" "$PWD"
-	printf "ROOT: %s\n" "$ROOT"
-	printf "LOG: %s\n" "$LOG"
-	printf "KEYS: %s\n" "$KEYS"
+	printf "PWD:     %s\n" "$PWD"
+	printf "ROOT:    %s\n" "$ROOT"
+	printf "LOG:     %s\n" "$LOG"
+	printf "KEY:     %s\n" "$KEY"
 	cat users.conf
 	;;
 update)
@@ -30,14 +30,14 @@ reset)
 	;;
 *)
 	# Prepare .ssh folder and files
-	mkdir -p $(dirname $KEYS)
-	chmod 700 $(dirname $KEYS)
-	touch $KEYS
-	chmod 600 $KEYS
+	mkdir -p $(dirname $KEY)
+	chmod 700 $(dirname $KEY)
+	touch $KEY
+	chmod 600 $KEY
 
 	mkdir -p "$ROOT" "$(dirname $LOG)"
 
-	test -w "$KEYS" || die "File '$KEYS' is not writable"
+	test -w "$KEY" || die "File '$KEY' is not writable"
 
 	# sudo chsh -s /usr/bin/git-shell gituser
 

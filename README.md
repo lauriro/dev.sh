@@ -21,10 +21,10 @@ Install
 
 ```sh
 # Create a user as root or with sudo
-useradd --create-home --skel /dev/null --shell /bin/dash git
+useradd --create-home --skel /dev/null --home-dir /home/git --shell /bin/dash git
 # Clone gitserv to newly created user home directory
 su git
-git clone https://github.com/lauriro/gitserv.git $HOME
+git clone git://github.com/lauriro/gitserv.git $HOME
 # Setup .ssh dir and permissions
 ./gitserv setup
 # Add first git user

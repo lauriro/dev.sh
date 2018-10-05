@@ -18,10 +18,10 @@
 #-   repo test.git describe "My cool repo"
 #-   repo test.git fork new_repo.git
 
+. ./gitserv
 
 REPO_RE='[-a-z0-9_.]\{0,30\}.git$'
 
-. ./gitserv
 
 is_admin
 
@@ -170,7 +170,7 @@ acc_re() {
 }
 
 get_users() {
-	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEYS
+	sed -nEe "s/^.* USER=(${1-"[^ ]*"}) GROUP=([^ ]*).*/\1 [\2]/p" $KEY
 }
 
 

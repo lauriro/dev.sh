@@ -1,0 +1,9 @@
+#!/bin/sh
+#-
+#- EXAMPLES
+#-
+#-    git> info
+#-
+
+./user show $USER
+

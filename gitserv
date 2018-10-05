@@ -10,7 +10,7 @@
 
 export LC_ALL=C
 
-KEYS=$HOME/.ssh/authorized_keys
+KEY=$HOME/.ssh/authorized_keys
 LOG=$HOME/log/gitserv-$(date -u +%F).log
 ROOT=$HOME/repo
 
