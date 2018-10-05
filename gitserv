@@ -50,6 +50,7 @@ acc() {
 }
 
 resolve_repo() {
+	cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
 	# unquote repo name
 	REPO=${1%\'}
 	REPO=${REPO#*\'}
@@ -66,14 +67,11 @@ resolve_repo() {
 }
 
 if [ "${0##*/}" = "gitserv" ]; then
-	cd "$ROOT" >/dev/null 2>&1 || die "Setup first"
-
 	set -- $CMD
 
-	resolve_repo "$2"
-
 	case $1 in
-	git-*)   # git pull and push
+	git-*)   # git pull and push git-(upload|receive)-pack
+		resolve_repo "$2"
 		[ $1 = git-receive-pack ] && acc write "WRITE ACCESS DENIED" || acc read
 		if [ -n "$BACKEND" ]; then
 			SIZE=$(expr length "$1$REPO$BACKEND" + 13)
@@ -86,22 +84,10 @@ if [ "${0##*/}" = "gitserv" ]; then
 			rm $PIPE
 		else
 			env GIT_NAMESPACE=$FORK git shell -c "$1 '$REPO'"
-
-			# Assigns the original repository to a remote called "upstream"
-			if [ -n "$FORK" ]; then
-				printf "%s is a fork, you may want to add an upstream:\n" "$FORK" >&2
-				printf "   git remote add upstream %s\n" "$REPO" >&2
-			fi
-
-			# remote: This repository moved. Please use the new location:
-			# remote:   https://github.com/lauriro/lauriro.github.io.git
 		fi
 		;;
-	?*)
-		exec git shell -c "$*"
-		;;
 	*)
-		exec git shell ;;
+		exec git shell ${CMD:+-c} $CMD;;
 	esac
 
 	log
@@ -141,3 +127,11 @@ valid() {
 }
 
 
+
+# Assigns the original repository to a remote called "upstream"
+# if [ -n "$FORK" ]; then
+#	printf "%s is a fork, you may want to add an upstream:\n" "$FORK" >&2
+#	printf "   git remote add upstream %s\n" "$REPO" >&2
+# fi
+# remote: This repository moved. Please use the new location:
+# remote:   https://github.com/lauriro/lauriro.git
