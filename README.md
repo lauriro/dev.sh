@@ -1,15 +1,3 @@
-https://github.com/bkuhlmann/git-cop
-https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
-https://github.com/agis/git-style-guide
-
-https://github.com/agis/git-style-guide
-
-Fix
-Add
-Update
-Remove
-Refactor
-Replace
 
 Gitserv
 =======
@@ -131,3 +119,16 @@ Copyright (c) 2011-2015 Lauri Rooden <lauri@rooden.ee>
 [The MIT License](http://lauri.rooden.ee/mit-license.txt)
 
 
+https://github.com/bkuhlmann/git-cop
+https://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
+https://github.com/agis/git-style-guide
+https://try.gitea.io/
+https://try.gogs.io/
+
+
+Fix
+Add
+Update
+Remove
+Refactor
+Replace
