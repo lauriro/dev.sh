@@ -9,6 +9,14 @@ ver() {
 	echo "g$(git rev-parse --short HEAD)$(git diff --no-ext-diff --quiet --exit-code || echo '-dirty')"
 }
 
+# Check object consistency on every push
+git config --system receive.fsckObjects true
+# refuse force-pushes
+git config --system receive.denyNonFastForwards true
+# One of the workarounds to the denyNonFastForwards policy is for the user to
+# delete the branch and then push it back up with the new reference.
+# To avoid this, set receive.denyDeletes to true
+git config --system receive.denyDeletes true
 
 case $1 in
 print)
@@ -30,12 +38,10 @@ reset)
 	;;
 *)
 	# Prepare .ssh folder and files
-	mkdir -p $(dirname $KEY)
-	chmod 700 $(dirname $KEY)
+	mkdir -p "$ROOT" $(dirname $KEY) "$(dirname $LOG)"
 	touch $KEY
+	chmod 700 $(dirname $KEY)
 	chmod 600 $KEY
-
-	mkdir -p "$ROOT" "$(dirname $LOG)"
 
 	test -w "$KEY" || die "File '$KEY' is not writable"
 
