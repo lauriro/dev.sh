@@ -1,0 +1,4 @@
+2022-09-27T21:14:17Z  lauri: user 'test1' created. -- user test1 add
+2022-09-27T21:14:17Z  lauri: ERROR: user 'test1' exists. -- user test1 add
+2022-09-27T21:14:17Z  lauri: ERROR: user 'test2' does not exists. -- user test2 exists
+2022-09-27T21:14:17Z  lauri: user 'test2' created. -- user test2 add

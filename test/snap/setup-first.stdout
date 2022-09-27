@@ -1,0 +1,9 @@
+
+Available commands are:
+   repo <project.git> [init|info|rename|conf|drop]
+   user <username> [add|delete|conf|addkey|rmkey|info]
+   help [command]
+   exit
+
+See 'help <command>' to read about a specific command.
+
