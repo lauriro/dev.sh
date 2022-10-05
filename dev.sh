@@ -1,8 +1,8 @@
 #!/bin/sh
 #
-# Manage a development server with git, wireguard
+# Host a development server
 #
-#    @version  18.9.0
+#    @version  22.0.0
 #    @author   Lauri Rooden - https://github.com/lauriro/dev.sh
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #-
