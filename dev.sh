@@ -127,13 +127,11 @@ valid "$CMD " "[-_a-zA-Z0-9 +./,'@=|:]*$" "DON'T BE NAUGHTY"
 } || die "Can not do anything without setup"
 
 
-case "$CMD" in git-*) # git-(upload|receive)-pack
-	set -- $CMD
+[ "$1" = "git-upload-pack" -o "$1" = "git-receive-pack" ] && {
 	repo_exists "$2" || die "Repository not found."
 	[ $1 = git-receive-pack ] && repo_access write "WRITE ACCESS DENIED" || repo_access read
 	GIT_NAMESPACE=$FORK exec git shell -c "$1 '$REPO'"
-	;;
-esac
+}
 
 
 repo_create() {
