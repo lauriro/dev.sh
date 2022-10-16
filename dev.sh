@@ -45,15 +45,15 @@
 
 export LC_ALL=C
 
-: ${DATA:=$HOME/repo}
-: ${USERS:=$HOME/users.conf}
-: ${KEY:=$HOME/.ssh/authorized_keys}
-: ${LOG:=$HOME/$0-$(date -u +%F).log}
+DATA=$HOME/repo
+USERS=$HOME/users.conf
+KEY=$HOME/.ssh/authorized_keys
+LOG=$HOME/$0-$(date -u +%F).log
 
 NAME_RE='\([a-z]\)\([-_.]\?[a-z0-9]\)\{0,24\}'
 LINE="command='env USER=%s FP=%s $0',no-port-forwarding,no-X11-forwarding,no-agent-forwarding,no-pty %s"
 
-CMD=${SSH_ORIGINAL_COMMAND-"$*"}
+CMD=${SSH_ORIGINAL_COMMAND-"$@"}
 WHO="${SSH_CLIENT-${SUDO_USER+sudo}} local"
 WHO="${WHO%% *} ${SUDO_USER-$USER}"
 
@@ -76,7 +76,7 @@ ask() {
 	expr "$r" : "[yY]" >/dev/null 2>&1
 }
 valid() {
-	expr "$1" : "$2" >/dev/null 2>&1 || die "${3-"Invalid name '$1'"}"
+	expr "$1" : "$2" >/dev/null 2>&1 || die "${3:-"Invalid name '$1'"}"
 }
 usage() {
 	sed -n "/^#$1- \?/s///p" $0
@@ -198,7 +198,7 @@ user() {
 	git config --file "$USERS" "$@"
 }
 user_exists() {
-	valid "${2-$1}" "$NAME_RE$" && user user.$1.created >/dev/null
+	valid "${2:-$1}" "$NAME_RE$" && user user.$1.created >/dev/null
 }
 user_create() {
 	usage user
