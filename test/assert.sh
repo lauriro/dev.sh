@@ -21,8 +21,8 @@ reset="\033[0m"
 bold="\033[1m"
 
 OUT="${green}${bold}PASS:%s${reset} FAIL:%s"
-ERR="${red}✘${reset}"
-OK="${green}✔${reset}"
+ERR="^^^\n  ${red}✘${reset}"
+OK="  ${green}✔${reset}"
 
 [ "$SUB" = "up" ] && ERR="${yellow}ℹ${reset}"
 
@@ -50,19 +50,22 @@ compare() {
 }
 
 assert() {
-	[ -f "$TMP/$2.stdout" ] && die "duplicated test name: $2"
+	[ -f "$TMP/$2.stdout" ] && die "duplicate test name: $2"
+	EXIT=$1
+	NAME=$2
 	ICON=$OK
+	shift 2
 	#sleep 10
-	$CMD $3 >$TMP/$2.stdout 2>$TMP/$2.stderr
-	EXIT=$?
-	compare $2.stderr
-	compare $2.stdout
-	printf "  $ICON $((SEQ+=1)). $2\n$DIFF"
-	[ "$EXIT" = "$1" ] || die "exit status expected:$1 actual:$EXIT"
+	$CMD "$@" >"$TMP/$NAME.stdout" 2>"$TMP/$NAME.stderr"
+	_EXIT=$?
+	compare "$NAME.stderr"
+	compare "$NAME.stdout"
+	[ "$_EXIT" = "$EXIT" ] || die "exit status expected:$EXIT actual:$EXIT"
+	printf "$ICON $((SEQ+=1)). $NAME\n$DIFF"
 
 	[ "$SUB" = "debug" ] && {
-		echo "\$ $CMD $3"
-		cat $TMP/$2.stdout $TMP/$2.stderr
+		echo "\$ $CMD $@"
+		cat "$TMP/$NAME.stdout" "$TMP/$NAME.stderr"
 	}
 }
 
