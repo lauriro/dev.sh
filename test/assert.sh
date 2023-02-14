@@ -24,7 +24,7 @@ OUT="${green}${bold}PASS:%s${reset} FAIL:%s"
 ERR="^^^\n  ${red}✘${reset}"
 OK="  ${green}✔${reset}"
 
-[ "$SUB" = "up" ] && ERR="  ${yellow}ℹ${reset}"
+[ "$SUB" = "up" ] &&: ERR="  ${yellow}ℹ${reset}" && rm $SNAP/*
 
 die() {
 	printf "ERROR: %s\n" "$@" >&2
@@ -41,7 +41,7 @@ trap "bye" 0 1 2 3 6 15
 
 
 compare() {
-	set -- "$SNAP/$1$2" "$TMP/$1"
+	set -- "$SNAP/$1${2-".$NAME"}" "$TMP/$1"
 	diff -uN --color=always "$1" "$2" &&: $((PASS+=1)) || {
 		LINE=$ERR
 		OUT="PASS:%s ${red}${bold}FAIL:%s${reset}"
@@ -49,23 +49,36 @@ compare() {
 	}
 }
 
+It() {
+	assert 0 "It $@"
+}
+Test() {
+	assert 0 "Test $@"
+}
+Fail() {
+	NAME=$1
+	EXIT=$2
+	shift 2
+	assert $EXIT "Fail $NAME" "$@"
+}
+
 assert() {
-	[ -f "$TMP/$2.stdout" ] && die "duplicate test name: $2"
 	EXIT=$1
 	NAME=$2
 	LINE=$OK
 	shift 2
-	#sleep 10
-	$CMD "$@" >"$TMP/$NAME.stdout" 2>"$TMP/$NAME.stderr"
+	[ -f "$TMP/$NAME.stdout" ] && die "duplicate test name: $NAME"
+	$CMD $@ >"$TMP/$NAME.stdout" 2>"$TMP/$NAME.stderr"
 	_EXIT=$?
-	compare "$NAME.stderr"
-	compare "$NAME.stdout"
+	compare "$NAME.stderr" ""
+	compare "$NAME.stdout" ""
 	[ "$_EXIT" = "$EXIT" ] ||: LINE="exit status expected:$EXIT actual:$_EXIT\n$ERR"
-	printf "$LINE $((SEQ+=1)). $NAME\n"
+	printf "$LINE %3i. $NAME\n" $((SEQ+=1))
 
 	[ "$SUB" = "debug" ] && {
 		echo "\$ $CMD $@"
 		cat "$TMP/$NAME.stdout" "$TMP/$NAME.stderr"
 	}
+	#sleep 10
 }
 

@@ -95,3 +95,6 @@ Copyright (c) 2011-2022 Lauri Rooden <lauri@rooden.ee>
 [The MIT License](https://lauri.rooden.ee/mit-license.txt)
 
 
+For a simple local test, you can use git-remote-ext:
+git clone ext::'git --namespace=foo %s /tmp/prefixed.git'
+

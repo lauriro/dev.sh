@@ -6,41 +6,39 @@
 #    @author   Lauri Rooden - https://github.com/lauriro/dev.sh
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #-
-#- Available commands are:
-#-    repo <project.git> [init|info|rename|conf|drop]
-#-    user <username> [add|delete|conf|addkey|rmkey|info]
-#-    help [command]
-#-    exit
+#- Commands:
+#-     repo <project.git> [init|info|rename|conf|drop]
+#-     user <username> [add|delete|conf|addkey|rmkey|info]
+#-     help [command]
+#-     exit
 #-
-#- See 'help <command>' to read about a specific command.
+#- See 'help <command>' to read more about a specific command.
 #-
 #repo-
-#repo- EXAMPLES
-#repo-
-#repo-    git> repo
-#repo-    git> repo test.git init
-#repo-    git> repo test.git config access.read all
-#repo-    git> repo test.git config access.write admin,richard
-#repo-    git> repo test.git config access.write.devel all
-#repo-    git> repo test.git config access.tag richard
-#repo-    git> repo test.git config branch.master.denyDeletes true
-#repo-    git> repo test.git config branch.master.mergeoptions "--ff-only"
-#repo-    git> repo test.git config branch.devel.mergeoptions "--no-ff"
-#repo-    git> repo test.git config tags.denyOverwrite true
-#repo-    git> repo test.git describe "My cool repo"
-#repo-    git> repo test.git mv new-repo.git
-#repo-    git> repo test.git fork new-repo.git
-#repo-    git> repo test.git sta
+#repo- Examples:
+#repo-     git> repo
+#repo-     git> repo test.git init
+#repo-     git> repo test.git config access.read all
+#repo-     git> repo test.git config access.write admin,richard
+#repo-     git> repo test.git config access.write.devel all
+#repo-     git> repo test.git config access.tag richard
+#repo-     git> repo test.git config branch.master.denyDeletes true
+#repo-     git> repo test.git config branch.master.mergeoptions "--ff-only"
+#repo-     git> repo test.git config branch.devel.mergeoptions "--no-ff"
+#repo-     git> repo test.git config tags.denyOverwrite true
+#repo-     git> repo test.git describe "My cool repo"
+#repo-     git> repo test.git mv new-repo.git
+#repo-     git> repo test.git fork new-repo.git
+#repo-     git> repo test.git sta
 #user-
-#user- EXAMPLES
-#user-
-#user-    git> user john
-#user-    git> user john add
-#user-    git> user john addkey <ssh-public-key>
-#user-    git> user john rmkey john fingerprint
-#user-    git> user john group admin
-#user-    git> user john name "John Smith"
-#user-    git> user john delete
+#user- Examples:
+#user-     git> user john
+#user-     git> user john add
+#user-     git> user john addkey <ssh-public-key>
+#user-     git> user john rmkey john fingerprint
+#user-     git> user john group admin
+#user-     git> user john name "John Smith"
+#user-     git> user john delete
 #user-
 
 export LC_ALL=C
@@ -138,7 +136,6 @@ repo_create() {
 	git init --template=/usr/share/git-core/templates --bare --shared -q "$DATA/$REPO" #
 	rm -rf "$DATA/$REPO/hooks"
 	ln -fs "$HOME/hooks" "$DATA/$REPO/hooks"
-	repo transfer.hiderefs refs/namespaces
 	repo repo.owner "$USER"
 }
 repo_delete() {
@@ -206,15 +203,21 @@ user_delete() {
 	sed -ie "/ USER=$1 /d" $KEY
 }
 user_addkey() {
-	echo "Input the public key (ssh-rsa AAAAB3Nza... name@for.key):"
-	read PUB
+	NAME=$1
+	shift
+	PUB=$*
+	[ -z "$PUB" ] && {
+		echo "Input the public key (ssh-rsa AAAAB3Nza... name@for.key):"
+		read PUB
+	}
 	FP=$(echo "$PUB" | ssh-keygen -E md5 -lf- 2>/dev/null | awk '{gsub("^MD5:|:","",$2)}1')
-	[ -n "$FP"] && die "Invalid key"
-	user --get-regexp "[^ ]*.key" "^${FP%* }" >/dev/null && die "Key exists"
+	[ -n "$FP" ] || die "Invalid key: $PUB"
+	FP=${FP#* }
+	user --get-regexp "[^ ]*.key" "^${FP%% *}" >/dev/null && die "Key '${FP%% *}' exists"
 
-	user --add $1.key "${FP%* } $(now)"
-	printf "$LINE\n" "$1" "$FP" "$PUB" >> $KEY
-	printf "Key '%s' added for '%s'\n" "$FP" "$1"
+	user --add user.$NAME.key "${FP%% *} $(now)"
+	printf "$LINE\n" "$NAME" "$FP" "$PUB" >> $KEY
+	printf "Key '%s' added for '%s'\n" "$FP" "$NAME"
 
 }
 user_rmkey() {
@@ -240,9 +243,9 @@ is_admin() {
 }
 
 run() {
+	is_admin
 	case "$1.$3" in
 	repo.init|user.add)
-		is_admin
 		$1_exists "$2" && die "$1 '$2' exists."
 		$1_create "$2"
 		$1 "$1.$2.created" "$(now)"
@@ -255,17 +258,17 @@ run() {
 			info "$1 '$2' deleted."
 		}
 		;;
-	repo.conf|user.addkey|user.rmkey|user.delete|*.exists)
-		is_admin
+	repo.conf|user.addkey|user.rmkey|user.delete|user.exists)
 		$1_exists "$2" || die "$1 '$2' does not exists."
-		$1_$3 $2
+		SUB="$1_$3 $2"
+		shift 3
+		$SUB "$@"
 		;;
 	repo.default)
 		repo_exists "$2" || die "Repository '$REPO' not found."
 		GIT_NAMESPACE=$FORK git --git-dir "$REPO" symbolic-ref HEAD refs/heads/$4
 		;;
 	repo.mv|repo.fork)
-		is_admin
 		repo_exists "$4" && die "Repository '$REPO' exists."
 		repo_exists "$2" || die "Repository '$REPO' not found."
 		repo_$@
@@ -282,7 +285,7 @@ run() {
 	esac
 }
 
-[ -n "$CMD" ] && run $CMD && exit $?
+[ $# -gt 0 ] && run "$@" && exit $?
 
 C1="ls rm init user repo help"
 C2_init=""
@@ -295,7 +298,7 @@ C2="add drop rename"
 TAB=$(printf '\011')
 ESC=$(printf '\033')
 DEL=$(printf '\177')
-PS="\033[38;5;2mgit\033[m\033(B> "
+PS="\033[38;5;2mdev\033[m\033(B> "
 PL=5 # PS len without control codes
 
 # Command history

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 . ${0%/*}/assert.sh
 
@@ -11,23 +11,30 @@ echo "Test '$CMD' in '$TMP'"
 # SSH_AUTH_SOCK=/tmp/ssh-phQnIi9CdW/agent.24863
 # SSH_CONNECTION=88.196.62.133 59858 212.24.108.8 22
 
-assert 0 "Setup first" help --yes
-assert 0 "empty-users-list" user
+Test "setup" help --yes
+It "has initial users list empty" user
+It "should add first user" user test1 add
+It "shows first user info" user test1
+It "shows first user exists" user test1 exists
+Fail "on adding same user again" 2 user test1 add
+It "User list 1" user
 
-assert 0 "add-first-user" user test1 add
-assert 0 first-user-info user test1
-assert 0 first-user-exists user test1 exists
-assert 2 fail-on-adding-same-user-again user test1 add
-assert 0 user-list-1 user
-
-assert 2 second-user-does-not-exists user test2 exists
-assert 0 add-second-user user test2 add
-
-compare users.conf -after-adding-second-user
-
-assert 0 user-list-2 user test
-
+Fail "on checking non-existing user" 2 user test2 exists
+It "Add second user" user test2 add
 
 compare users.conf
+
+It "User list 2" user test
+
+PUB1="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQCuixTmHBevg4SSghYLja3pyO1pVMy194EgtiXV59trbBOJoXSasNIssXhwi8k3R9sJQJqzQTnh7UwYKM+AvWdXFupKfr1KoPo5k2W+28Q1EpzLr59fvRrs7k2Y8sZHlCpklZL3LPFHSFReL4p7x3r8UX2/37ZsyDtIBE7pH3zvwQ== weak@rsa.key"
+
+It "Add key to first user" user test1 addkey $PUB1
+
+compare users.conf
+
+Fail "add same key again" 1 user test2 addkey $PUB1
+
+
+
 compare log
 
