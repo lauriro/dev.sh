@@ -4,11 +4,9 @@ LANG=C
 SUB=$1
 SEQ=1000
 
-export HOME=$(cd ${0%/*}/..;pwd)
 export TMP=$(mktemp -d)
 
-
-SNAP=$HOME/test/snap
+SNAP=$BIN/test/snap
 
 : ${PASS:=0}
 : ${FAIL:=0}
@@ -34,6 +32,7 @@ bye() {
 	printf "\n$OUT\n\n" $PASS $FAIL
 	times
 	rm -rf $TMP
+	[ "$SUB" = "up" ] && git add $SNAP/
 	exit $FAIL
 }
 

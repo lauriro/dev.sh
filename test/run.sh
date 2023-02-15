@@ -1,9 +1,11 @@
 #!/bin/bash
 
+export BIN=$(cd ${0%/*}/..;pwd)
+export CONF=$BIN/test/test.conf
+CMD="$BIN/dev.sh"
+
 . ${0%/*}/assert.sh
 
-export CONF=$HOME/test/test.conf
-CMD="$HOME/dev.sh"
 
 echo "Test '$CMD' in '$TMP'"
 
@@ -36,6 +38,8 @@ runExamples() {
 
 It "has initial users list empty" user
 It "should add first user" user test1 add
+It "should add user name" user test1 name "First User"
+It "should set user roles" user test1 role admin,web
 It "shows first user info" user test1 info
 It "shows first user exists" user test1 exists
 It "lists first user" user
@@ -51,6 +55,7 @@ Check users.conf
 
 It "Add key to first user" user test1 addkey $PUB1
 Check users.conf
+Check authorized_keys
 
 Fail 1 "to add same key again" user test-2 addkey $PUB1
 Fail 1 "on removing key from wrong user" user test-2 rmkey 8c65c5fcca5d8847674889b4b34312bf
@@ -65,5 +70,23 @@ Check users.conf
 It "shows first 100 users" user
 It "filter users" user y02
 
+
+It "has initial repo list empty" repo
+It "should init first repo" repo test1 init
+It "should test that repo exists" repo test1 exists
+It "should test that repo exists" repo test1.git exists
+It "should set read access" repo test1.git set access.read all
+It "should set write access" repo test1.git set access.write admin,manager
+It "should show repo info" repo test1.git info
+
+Fail 1 "on adding same repo again" repo test1 init
+Fail 1 "on checking non-existing repo" repo test2 exists
+Fail 1 "on checking non-existing repo" repo test2.git exists
+
+
+
+
+
 Check log
+
 

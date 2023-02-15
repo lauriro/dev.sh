@@ -7,9 +7,9 @@
 #    @license  MIT License  - http://lauri.rooden.ee/mit-license.txt
 #-
 #- Commands:
-#-     repo <project.git> [init|info|rename|conf|drop]
+#-     repo <project.git> [init|info|rename|set|drop]
 #-     role <rolename>
-#-     user <username> [add|delete|conf|addkey|rmkey|info]
+#-     user <username> [add|addkey|info|name|role|rmkey|delete]
 #-     help [command]
 #-     exit
 #-
@@ -19,14 +19,14 @@
 #repo- Examples:
 #repo-     git> repo [search filter]
 #repo-     git> repo test.git init
-#repo-     git> repo test.git config access.read all
-#repo-     git> repo test.git config access.write admin,richard
-#repo-     git> repo test.git config access.write.devel all
-#repo-     git> repo test.git config access.tag richard
-#repo-     git> repo test.git config branch.master.denyDeletes true
-#repo-     git> repo test.git config branch.master.mergeoptions "--ff-only"
-#repo-     git> repo test.git config branch.devel.mergeoptions "--no-ff"
-#repo-     git> repo test.git config tags.denyOverwrite true
+#repo-     git> repo test.git access read all
+#repo-     git> repo test.git access write admin,richard
+#repo-     git> repo test.git access write.devel all
+#repo-     git> repo test.git access tag richard
+#repo-     git> repo test.git set branch.master.denyDeletes true
+#repo-     git> repo test.git set branch.master.mergeoptions "--ff-only"
+#repo-     git> repo test.git set branch.devel.mergeoptions "--no-ff"
+#repo-     git> repo test.git set tags.denyOverwrite true
 #repo-     git> repo test.git describe "My cool repo"
 #repo-     git> repo test.git mv new-repo.git
 #repo-     git> repo test.git fork new-repo.git
@@ -36,9 +36,10 @@
 #role-     git> role [search filter]
 #user-
 #user- Examples:
-#user-     git> user john
+#user-     git> user [search filter]
 #user-     git> user john add
 #user-     git> user john addkey <ssh-public-key>
+#user-     git> user john info
 #user-     git> user john name "John Smith"
 #user-     git> user john role admin,web
 #user-     git> user john rmkey john <fingerprint>
@@ -46,6 +47,7 @@
 #user-
 
 export LC_ALL=C
+BIN=$(cd ${0%/*};pwd)
 
 DATA=$HOME/repo
 USERS=$HOME/users.conf
@@ -109,7 +111,7 @@ repo_exists() {
 	test -n "$(repo "repo.created")"
 }
 repo_access() {
-	re=$(echo admin,$(repo "repo.createdBy"),$(repo "access.$1") | sed 's/,,*/\\|/g')
+	re=$(echo admin,$(repo "repo.createdBy"),$(repo "repo.$1") | sed 's/,,*/\\|/g')
 	valid ",all,$USER,$G," ".*,\($re\)," "Repo '${FORK-$REPO}' does not exists"
 }
 
@@ -137,9 +139,11 @@ valid "$CMD " "[-_a-zA-Z0-9 +./,'@=|:]*$" "DON'T BE NAUGHTY"
 
 
 repo_create() {
-	git init --bare -q "$DATA/$REPO" #
-	rm -rf "$DATA/$REPO/hooks"
-	ln -fs "$HOME/hooks" "$DATA/$REPO/hooks"
+	git init --template=$BIN/empty-repo --bare -q "$DATA/$REPO" #
+	repo "repo.created" "$(now)"
+	repo "repo.createdBy" "$WHO"
+	#rm -rf "$DATA/$REPO/hooks"
+	#ln -fs "$HOME/hooks" "$DATA/$REPO/hooks"
 }
 repo_delete() {
 	# Warning: These steps will permanently delete the repository, wiki, issues, and comments.
@@ -154,17 +158,16 @@ repo_mv() {
 	mv $REPO $LAST_REPO
 	log "repo '$REPO' renamed to '$LAST_REPO'"
 }
-repo_conf() {
-	repo "${3-'-l'}" "$4"
-	#repo "repo.$1.$3" "$4"
+repo_set() {
+	repo "repo.$2" "$3"
 }
 repo_fork() {
 	FORK=$LAST_REPO
 	DIR=$DATA/$FORK
 	mkdir -p ${DIR%/*}
-	repo repo.$FORK.created "$(now)"
-	repo repo.$FORK.createdBy "$WHO"
-	repo repo.$FORK.upstream "$REPO"
+	repo repo.created "$(now)"
+	repo repo.createdBy "$WHO"
+	repo repo.upstream "$REPO"
 	printf "Fork '%s' created.\n" "$FORK"
 	printf "You may want to add an upstream:\n   git remote add upstream %s\n" "$REPO"
 }
@@ -173,7 +176,7 @@ repo_info() {
 	ACC_W=$(repo repo.write)
 	printf "Repo:  %s\n" "$REPO${FORK:+"<-$FORK"} [R:$ACC_R W:$ACC_W]"
 	printf "Owner: %s\n" "$(repo repo.createdBy)"
-	printf "Size:  %s\n" "$(test -d "$1" && (cd $1; git count-objects -H) || echo "- fork -")"
+	printf "Size:  %s\n" "$(test -d "$REPO" && (cd $REPO; git count-objects -H) || echo "- fork -")"
 	printf "\nLIST OF USERS WITH ACCESS:   (* = write)\n"
 	{
 		test -n "$ACC_W" && repo --get-regexp "^.*\.role" "$ACC_W" |\
@@ -205,6 +208,8 @@ user_exists() {
 }
 user_create() {
 	usage user
+	user "user.$1.created" "$(now)"
+	user "user.$1.createdBy" "$WHO"
 }
 user_delete() {
 	user --rename-section user.$1 "deleted.$1 $(now)"
@@ -252,8 +257,6 @@ run() {
 	repo.init|user.add)
 		$1_exists "$2" && die "$1 '$2' exists"
 		$1_create "$2"
-		$1 "$1.$2.created" "$(now)"
-		$1 "$1.$2.createdBy" "$WHO"
 		log "$1 '$2' created"
 		;;
 	repo.|role.|user.)
@@ -261,29 +264,29 @@ run() {
 		$1_ls "$2"
 		;;
 	repo.drop|user.delete)
-		$1_exists "$2" || die "$1 '$2' does not exists"
+		$1_exists "$2" || die "$1 '$2' not found"
 		ask "Delete $1 '$2'?" && {
 			$1_delete $2
 			log "$1 '$2' deleted"
 		}
 		;;
-	repo.conf|repo.info|user.info|user.addkey|user.rmkey|user.delete|user.exists)
-		$1_exists "$2" || die "$1 '$2' does not exists"
+	repo.set|repo.exists|repo.info|user.info|user.addkey|user.rmkey|user.delete|user.exists)
+		$1_exists "$2" || die "$1 '$2' not found"
 		SUB="$1_$3 $2"
 		shift 3
 		$SUB "$@"
 		;;
 	repo.default)
-		repo_exists "$2" || die "Repository '$REPO' not found"
+		repo_exists "$2" || die "$1 '$2' not found"
 		GIT_NAMESPACE=$FORK git --git-dir "$REPO" symbolic-ref HEAD refs/heads/$4
 		;;
 	repo.mv|repo.fork)
-		repo_exists "$4" && die "Repository '$REPO' exists"
-		repo_exists "$2" || die "Repository '$REPO' not found"
+		repo_exists "$4" && die "$1 '$4' exists"
+		repo_exists "$2" || die "$1 '$2' not found"
 		repo_$@
 		;;
 	user.name|user.role)
-		$1_exists "$2" || die "$1 '$2' does not exists"
+		$1_exists "$2" || die "$1 '$2' not found"
 		$1 "$1.$2.$3" "$4"
 		;;
 	help.*)
@@ -298,10 +301,9 @@ run() {
 
 usage
 
-C1="ls rm init user repo help"
-C2_init=""
-C2_user="add delete addkey rmkey"
-C2="add drop rename"
+C1="repo role user help exit"
+C3_repo="init info rename set drop"
+C3_user="add addkey info name role rmkey delete"
 
 # Interactive Shell
 
@@ -370,7 +372,7 @@ while printf "$PS"; do
 		"$ESC[3~") cursor -1 0     ;; # DELETE
 		"$DEL")    cursor 1 -1     ;; # BACKSPACE
 		"")
-			[ "$CMD" = exit ] && exit
+			case "$CMD" in [Ee][Xx]*) exit;; esac
 			printf "\n"
 			[ -n "$CMD" ] && histAdd "$CMD" && (run $CMD)
 			HPOS=$HLEN

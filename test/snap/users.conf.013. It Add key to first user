@@ -1,0 +1,9 @@
+[user "test1"]
+	created = 2022-09-27T21:14:17Z
+	createdBy = testrunner
+	name = First
+	role = admin,web
+	key = 8c65c5fcca5d8847674889b4b34312bf 2022-09-27T21:14:17Z
+[user "test-2"]
+	created = 2022-09-27T21:14:17Z
+	createdBy = testrunner

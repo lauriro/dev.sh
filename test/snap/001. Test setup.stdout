@@ -1,8 +1,8 @@
 
 Commands:
-    repo <project.git> [init|info|rename|conf|drop]
+    repo <project.git> [init|info|rename|set|drop]
     role <rolename>
-    user <username> [add|delete|conf|addkey|rmkey|info]
+    user <username> [add|addkey|info|name|role|rmkey|delete]
     help [command]
     exit
 
