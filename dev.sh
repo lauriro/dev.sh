@@ -36,7 +36,7 @@
 #role-     git> role [search filter]
 #user-
 #user- Examples:
-#user-     git> user john [search filter]
+#user-     git> user john
 #user-     git> user john add
 #user-     git> user john addkey <ssh-public-key>
 #user-     git> user john name "John Smith"
@@ -84,8 +84,8 @@ usage() {
 	sed -n "/^#$1- \?/s///p" $0
 }
 col() {
-	sed -e '100s/.*/.../;100q' -e ${1-'s/^user\.\|\.created .*//g'} |\
-	sort -u | git column --mode=auto --padding=2 --indent="   "
+	sed ${1-'s/^user\.\|\.created .*//g'} | sort -u |\
+	sed -e '100s/.*/.../;100q' | git column --mode=column --padding=2 --indent="   "
 }
 
 repo() {
