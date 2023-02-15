@@ -62,7 +62,7 @@ WHO="${WHO%% *} ${SUDO_USER-$USER}"
 now() {
 	date -u +%FT%TZ
 }
-info() {
+log() {
 	printf "%s\n" "$@"
 	echo "$(now) $WHO: $1 -- $CMD" >> $LOG
 }
@@ -152,7 +152,7 @@ repo_delete() {
 }
 repo_mv() {
 	mv $REPO $LAST_REPO
-	info "Repository '$REPO' renamed to '$LAST_REPO'."
+	log "repo '$REPO' renamed to '$LAST_REPO'"
 }
 repo_conf() {
 	repo "${3-'-l'}" "$4"
@@ -225,14 +225,14 @@ user_addkey() {
 
 	user --add user.$NAME.key "${FP%% *} $(now)"
 	printf "$LINE\n" "$NAME" "$FP" "$PUB" >> $KEY
-	printf "Key '%s' added for '%s'\n" "$FP" "$NAME"
+	printf "key '%s' added for '%s'\n" "$FP" "$NAME"
 
 }
 user_rmkey() {
-	user --get-regexp "$1.key" "^$2" >/dev/null || die "Key not exists"
+	user --get-regexp "^user.$1.key" "^$2" >/dev/null || die "Key not exists"
 	sed -ie "/ FP=$2 /d" $KEY
-	user --unset "$1.key" "^$2"
-	info "Key '$2' removed."
+	user --unset "user.$1.key" "^$2"
+	log "key '$2' removed"
 }
 user_info() {
 	user --get-regexp "^user\.$1\." | sed "s/^user\.$1\.//"
@@ -243,7 +243,7 @@ user_set() {
 
 
 is_admin() {
-	test -z "$FP" || valid ",$(user $USER.role)," ".*,admin," "Admin access denied"
+	test -z "$FP" || valid ",$(user user.$USER.role)," ".*,admin," "Admin access denied"
 }
 
 run() {
@@ -254,7 +254,7 @@ run() {
 		$1_create "$2"
 		$1 "$1.$2.created" "$(now)"
 		$1 "$1.$2.createdBy" "$WHO"
-		info "$1 '$2' created"
+		log "$1 '$2' created"
 		;;
 	repo.|role.|user.)
 		printf "List of ${1}s: (filter: ${2:-*})\n"
@@ -264,7 +264,7 @@ run() {
 		$1_exists "$2" || die "$1 '$2' does not exists"
 		ask "Delete $1 '$2'?" && {
 			$1_delete $2
-			info "$1 '$2' deleted"
+			log "$1 '$2' deleted"
 		}
 		;;
 	repo.conf|repo.info|user.info|user.addkey|user.rmkey|user.delete|user.exists)

@@ -20,8 +20,8 @@ It "shows first user exists" user test1 exists
 Fail 2 "on adding same user again" user test1 add
 It "User list 1" user
 
-Fail 2 "on checking non-existing user" user test2 exists
-It "Add second user" user test2 add
+Fail 2 "on checking non-existing user" user test-2 exists
+It "Add second user" user test-2 add
 
 Check users.conf
 
@@ -33,8 +33,11 @@ It "Add key to first user" user test1 addkey $PUB1
 
 Check users.conf
 
-Fail 1 "add same key again" user test2 addkey $PUB1
+Fail 1 "add same key again" user test-2 addkey $PUB1
+Fail 1 "on removing key from wrong user" user test-2 rmkey 8c65c5fcca5d8847674889b4b34312bf
 
+It "should remove key" user test1 rmkey 8c65c5fcca5d8847674889b4b34312bf
+Check users.conf
 
 
 Check log

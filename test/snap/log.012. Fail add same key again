@@ -1,5 +1,0 @@
-2022-09-27T21:14:17Z testrunner: user 'test1' created -- user test1 add
-2022-09-27T21:14:17Z testrunner: ERROR: user 'test1' exists -- user test1 add
-2022-09-27T21:14:17Z testrunner: ERROR: user 'test2' does not exists -- user test2 exists
-2022-09-27T21:14:17Z testrunner: user 'test2' created -- user test2 add
-2022-09-27T21:14:17Z testrunner: ERROR: Key '8c65c5fcca5d8847674889b4b34312bf' exists -- user test2 addkey ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQCuixTmHBevg4SSghYLja3pyO1pVMy194EgtiXV59trbBOJoXSasNIssXhwi8k3R9sJQJqzQTnh7UwYKM+AvWdXFupKfr1KoPo5k2W+28Q1EpzLr59fvRrs7k2Y8sZHlCpklZL3LPFHSFReL4p7x3r8UX2/37ZsyDtIBE7pH3zvwQ== weak@rsa.key
