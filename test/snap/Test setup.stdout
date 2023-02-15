@@ -1,6 +1,7 @@
 
 Commands:
     repo <project.git> [init|info|rename|conf|drop]
+    role <rolename>
     user <username> [add|delete|conf|addkey|rmkey|info]
     help [command]
     exit
