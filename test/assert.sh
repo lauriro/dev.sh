@@ -2,6 +2,7 @@
 
 LANG=C
 SUB=$1
+SEQ=1000
 
 export HOME=$(cd ${0%/*}/..;pwd)
 export TMP=$(mktemp -d)
@@ -12,7 +13,6 @@ SNAP=$HOME/test/snap
 : ${PASS:=0}
 : ${FAIL:=0}
 : ${SYNC:=0}
-: ${SEQ:=0}
 
 red="\033[31m"
 green="\033[32m"
@@ -40,7 +40,7 @@ bye() {
 trap "bye" 0 1 2 3 6 15
 
 
-compare() {
+Check() {
 	set -- "$SNAP/$1${2-".$NAME"}" "$TMP/$1"
 	diff -uN --color=always "$1" "$2" &&: $((PASS+=1)) || {
 		LINE=$ERR
@@ -56,24 +56,23 @@ Test() {
 	assert 0 "Test $@"
 }
 Fail() {
-	NAME=$1
-	EXIT=$2
-	shift 2
-	assert $EXIT "Fail $NAME" "$@"
+	EXIT=$1
+	shift
+	assert $EXIT "Fail $@"
 }
 
 assert() {
+	: $((SEQ+=1))
 	EXIT=$1
-	NAME=$2
+	NAME="${SEQ#?}. $2"
 	LINE=$OK
 	shift 2
-	[ -f "$TMP/$NAME.stdout" ] && die "duplicate test name: $NAME"
 	$CMD $@ >"$TMP/$NAME.stdout" 2>"$TMP/$NAME.stderr"
 	_EXIT=$?
-	compare "$NAME.stderr" ""
-	compare "$NAME.stdout" ""
+	Check "$NAME.stderr" ""
+	Check "$NAME.stdout" ""
 	[ "$_EXIT" = "$EXIT" ] ||: LINE="exit status expected:$EXIT actual:$_EXIT\n$ERR"
-	printf "$LINE %3i. $NAME\n" $((SEQ+=1))
+	printf "$LINE $NAME\n"
 
 	[ "$SUB" = "debug" ] && {
 		echo "\$ $CMD $@"

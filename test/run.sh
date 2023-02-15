@@ -14,15 +14,16 @@ echo "Test '$CMD' in '$TMP'"
 Test "setup" help --yes
 It "has initial users list empty" user
 It "should add first user" user test1 add
-It "shows first user info" user test1
+Check users.conf
+It "shows first user info" user test1 info
 It "shows first user exists" user test1 exists
-Fail "on adding same user again" 2 user test1 add
+Fail 2 "on adding same user again" user test1 add
 It "User list 1" user
 
-Fail "on checking non-existing user" 2 user test2 exists
+Fail 2 "on checking non-existing user" user test2 exists
 It "Add second user" user test2 add
 
-compare users.conf
+Check users.conf
 
 It "User list 2" user test
 
@@ -30,11 +31,11 @@ PUB1="ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAAAgQCuixTmHBevg4SSghYLja3pyO1pVMy194Egti
 
 It "Add key to first user" user test1 addkey $PUB1
 
-compare users.conf
+Check users.conf
 
-Fail "add same key again" 1 user test2 addkey $PUB1
+Fail 1 "add same key again" user test2 addkey $PUB1
 
 
 
-compare log
+Check log
 
